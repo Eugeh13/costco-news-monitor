@@ -1,0 +1,23 @@
+# Ejemplo de configuración de crontab para ejecutar el monitoreo cada 15 minutos
+#
+# Para editar tu crontab:
+#   crontab -e
+#
+# Luego agregar una de las siguientes líneas:
+
+# Opción 1: Ejecutar cada 15 minutos
+*/15 * * * * cd /home/ubuntu/news_monitor_app && /usr/bin/python3 main.py >> /home/ubuntu/news_monitor_app/monitor.log 2>&1
+
+# Opción 2: Ejecutar cada 30 minutos
+*/30 * * * * cd /home/ubuntu/news_monitor_app && /usr/bin/python3 main.py >> /home/ubuntu/news_monitor_app/monitor.log 2>&1
+
+# Opción 3: Ejecutar cada hora
+0 * * * * cd /home/ubuntu/news_monitor_app && /usr/bin/python3 main.py >> /home/ubuntu/news_monitor_app/monitor.log 2>&1
+
+# Opción 4: Ejecutar cada 5 minutos (monitoreo intensivo)
+*/5 * * * * cd /home/ubuntu/news_monitor_app && /usr/bin/python3 main.py >> /home/ubuntu/news_monitor_app/monitor.log 2>&1
+
+# Nota: Asegúrate de reemplazar las rutas con las rutas absolutas correctas en tu sistema
+# Para encontrar la ruta de Python, ejecuta: which python3
+# Para encontrar la ruta del proyecto, ejecuta: pwd (dentro del directorio del proyecto)
+
