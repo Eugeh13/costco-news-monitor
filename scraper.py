@@ -217,16 +217,24 @@ class NewsScraperV2:
         if TWITTER_AVAILABLE:
             try:
                 scraper = TwitterScraperAuth()
+                print(f"  🔍 Verificando configuración de cookies...")
+                print(f"  🔍 TWITTER_AUTH_TOKEN presente: {bool(scraper.auth_token)}")
+                print(f"  🔍 TWITTER_CT0 presente: {bool(scraper.ct0)}")
                 if scraper.is_configured():
                     print(f"  🔐 Usando autenticación con cookies para @{handle}...")
                     tweets = scraper.get_user_tweets(handle, count=10)
                     if tweets:
                         print(f"  ✓ {len(tweets)} tweets extraídos de @{handle}")
                         return tweets
+                    else:
+                        print(f"  ⚠️  No se obtuvieron tweets con cookies, intentando Nitter...")
                 else:
                     print(f"  ⚠️  Cookies de Twitter no configuradas, usando Nitter...")
             except Exception as e:
-                print(f"  ⚠️  Error con autenticación: {e}, intentando Nitter...")
+                print(f"  ⚠️  Error con autenticación: {e}")
+                import traceback
+                traceback.print_exc()
+                print(f"  ⚠️  Intentando Nitter...")
         
         # Fallback: Intentar con Nitter
         nitter_instances = [
