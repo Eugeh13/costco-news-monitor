@@ -6,6 +6,14 @@ import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
 import re
+import os
+
+# Importar scraper de Twitter si está disponible
+try:
+    from twitter_scraper_auth import TwitterScraperAuth
+    TWITTER_AVAILABLE = True
+except ImportError:
+    TWITTER_AVAILABLE = False
 
 
 class NewsScraperV2:
@@ -200,10 +208,27 @@ class NewsScraperV2:
     
     def scrape_twitter_profile(self, url: str, handle: str) -> List[Dict]:
         """
-        Intenta extraer tweets usando Nitter.
+        Extrae tweets usando autenticación con cookies (método principal)
+        o Nitter como fallback.
         """
         tweets = []
         
+        # Intentar primero con autenticación por cookies
+        if TWITTER_AVAILABLE:
+            try:
+                scraper = TwitterScraperAuth()
+                if scraper.is_configured():
+                    print(f"  🔐 Usando autenticación con cookies para @{handle}...")
+                    tweets = scraper.get_user_tweets(handle, count=10)
+                    if tweets:
+                        print(f"  ✓ {len(tweets)} tweets extraídos de @{handle}")
+                        return tweets
+                else:
+                    print(f"  ⚠️  Cookies de Twitter no configuradas, usando Nitter...")
+            except Exception as e:
+                print(f"  ⚠️  Error con autenticación: {e}, intentando Nitter...")
+        
+        # Fallback: Intentar con Nitter
         nitter_instances = [
             f"https://nitter.net/{handle}",
             f"https://nitter.privacydev.net/{handle}",
@@ -243,14 +268,14 @@ class NewsScraperV2:
                         continue
                 
                 if tweets:
-                    print(f"  ✓ {len(tweets)} tweets extraídos de @{handle}")
+                    print(f"  ✓ {len(tweets)} tweets extraídos de @{handle} (Nitter)")
                     return tweets
                     
             except Exception as e:
                 continue
         
         if not tweets:
-            print(f"  ⚠️  No se pudieron obtener tweets de @{handle} (Nitter no disponible)")
+            print(f"  ⚠️  No se pudieron obtener tweets de @{handle}")
         
         return tweets
 
