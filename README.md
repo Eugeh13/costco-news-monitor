@@ -282,3 +282,5 @@ Uso privado - Costco Monterrey
 
 **Desarrollado con ❤️ para Costco Monterrey**  
 **Powered by OpenAI GPT-4o-mini**
+
+# Redeploy trigger
