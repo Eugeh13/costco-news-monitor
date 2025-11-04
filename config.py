@@ -117,20 +117,72 @@ NEWS_SOURCES = [
 
 # Cuentas de Twitter/X para monitorear
 TWITTER_ACCOUNTS = [
+    # Cuentas generales de Monterrey
     {
         "handle": "pc_mty",
         "nombre": "Protección Civil Monterrey",
-        "url": "https://twitter.com/pc_mty"
+        "url": "https://twitter.com/pc_mty",
+        "zona": "General"
     },
     {
         "handle": "mtytrafico",
         "nombre": "Tráfico MTY",
-        "url": "https://twitter.com/mtytrafico"
+        "url": "https://twitter.com/mtytrafico",
+        "zona": "General"
     },
     {
         "handle": "seguridadmtymx",
         "nombre": "Seguridad Monterrey",
-        "url": "https://twitter.com/seguridadmtymx"
+        "url": "https://twitter.com/seguridadmtymx",
+        "zona": "General"
+    },
+    {
+        "handle": "QueSucedeEnMty",
+        "nombre": "Que Sucede en Monterrey",
+        "url": "https://twitter.com/QueSucedeEnMty",
+        "zona": "General"
+    },
+    
+    # Cuentas específicas de Carretera Nacional
+    {
+        "handle": "Kilometro264",
+        "nombre": "Carretera Nacional",
+        "url": "https://twitter.com/Kilometro264",
+        "zona": "Carretera Nacional"
+    },
+    {
+        "handle": "GN_Carreteras",
+        "nombre": "Guardia Nacional Carreteras",
+        "url": "https://twitter.com/GN_Carreteras",
+        "zona": "Carretera Nacional"
+    },
+    
+    # Cuentas específicas de Cumbres / San Pedro
+    {
+        "handle": "SSPCMonterrey",
+        "nombre": "Seguridad y Protección Ciudadana",
+        "url": "https://twitter.com/SSPCMonterrey",
+        "zona": "Cumbres"
+    },
+    {
+        "handle": "Rescate911SP",
+        "nombre": "Rescate 911 San Pedro",
+        "url": "https://twitter.com/Rescate911SP",
+        "zona": "Cumbres / Valle Oriente"
+    },
+    
+    # Cuentas específicas de Valle Oriente / Lázaro Cárdenas
+    {
+        "handle": "TraficoenMty",
+        "nombre": "Tráfico en Monterrey",
+        "url": "https://twitter.com/TraficoenMty",
+        "zona": "Valle Oriente / Lázaro Cárdenas"
+    },
+    {
+        "handle": "SanPedroNL",
+        "nombre": "Municipio de San Pedro",
+        "url": "https://twitter.com/SanPedroNL",
+        "zona": "Valle Oriente"
     }
 ]
 
