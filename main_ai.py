@@ -16,6 +16,14 @@ from notifier_ai import NotifierAI as Notifier
 from storage import NewsStorage
 from time_filter import TimeFilter
 
+# Importar Twitter scraper con autenticación
+try:
+    from twitter_scraper_auth import TwitterScraperAuth
+    TWITTER_AUTH_AVAILABLE = True
+except ImportError:
+    TWITTER_AUTH_AVAILABLE = False
+    print("⚠️  twitter_scraper_auth no disponible")
+
 
 class NewsMonitorAI:
     """Clase principal que orquesta el monitoreo de noticias con análisis de IA."""
@@ -40,6 +48,20 @@ class NewsMonitorAI:
         self.costco_locations = config.COSTCO_LOCATIONS
         self.radius_km = config.RADIUS_KM
         self.use_ai = use_ai
+        
+        # Inicializar Twitter scraper con autenticación
+        self.twitter_scraper = None
+        if TWITTER_AUTH_AVAILABLE:
+            try:
+                self.twitter_scraper = TwitterScraperAuth()
+                if self.twitter_scraper.is_configured():
+                    print("✓ Twitter scraper configurado con cookies")
+                else:
+                    print("⚠️  Cookies de Twitter no configuradas")
+                    self.twitter_scraper = None
+            except Exception as e:
+                print(f"⚠️  Error inicializando Twitter scraper: {e}")
+                self.twitter_scraper = None
         
         if use_ai:
             print("✓ Sistema inicializado con análisis de IA (OpenAI)")
@@ -369,33 +391,43 @@ class NewsMonitorAI:
         
         # Monitorear Twitter
         print("\nMonitoreando Twitter/X...")
-        for twitter_account in config.TWITTER_ACCOUNTS:
-            try:
-                print(f"Monitoreando: @{twitter_account['handle']}...")
-                tweets = self.scraper.scrape_twitter_profile(
-                    twitter_account['url'],
-                    twitter_account['handle']
-                )
-                
-                if tweets:
-                    print(f"  → {len(tweets)} tweets encontrados")
-                    news_found += len(tweets)
+        if self.twitter_scraper:
+            print("🔐 Usando autenticación con cookies (twscrape)")
+            for twitter_account in config.TWITTER_ACCOUNTS:
+                try:
+                    handle = twitter_account['handle']
+                    print(f"Monitoreando: @{handle}...")
                     
-                    for tweet in tweets:
-                        if self.use_ai:
-                            result = self.process_news_item_with_ai(tweet)
-                        else:
-                            result = self.process_news_item_traditional(tweet)
+                    # Usar TwitterScraperAuth directamente
+                    tweets = self.twitter_scraper.get_user_tweets(handle, count=10)
+                    
+                    if tweets:
+                        print(f"  ✓ {len(tweets)} tweets extraídos de @{handle}")
+                        news_found += len(tweets)
                         
-                        if result:
-                            alerts_sent += 1
-                else:
-                    print(f"  → 0 tweets encontrados")
-                
-                time.sleep(2)
-                
-            except Exception as e:
-                print(f"  ⚠️  Error monitoreando @{twitter_account['handle']}: {e}")
+                        for tweet in tweets:
+                            if self.use_ai:
+                                result = self.process_news_item_with_ai(tweet)
+                            else:
+                                result = self.process_news_item_traditional(tweet)
+                            
+                            if result:
+                                alerts_sent += 1
+                    else:
+                        print(f"  → 0 tweets encontrados")
+                    
+                    time.sleep(2)
+                    
+                except Exception as e:
+                    print(f"  ⚠️  Error monitoreando @{handle}: {e}")
+                    import traceback
+                    traceback.print_exc()
+        else:
+            print("⚠️  Twitter scraper no disponible (cookies no configuradas)")
+            print("  Saltando monitoreo de Twitter...")
+            for twitter_account in config.TWITTER_ACCOUNTS:
+                print(f"Monitoreando: @{twitter_account['handle']}...")
+                print(f"  → 0 tweets encontrados (sin autenticación)")
         
         print(f"\n{'='*70}")
         print(f"✓ Monitoreo completado - {news_found} noticias analizadas")
