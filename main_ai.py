@@ -5,6 +5,10 @@ VERSIÓN MEJORADA CON ANÁLISIS DE IA (OpenAI)
 
 import time
 from datetime import datetime
+import pytz
+
+# Configurar zona horaria Central (CST/CDT)
+CENTRAL_TZ = pytz.timezone('America/Chicago')
 
 # Importar módulos locales
 import config
@@ -71,7 +75,7 @@ class NewsMonitorAI:
     
     def send_monitoring_summary(self, news_analyzed: int, alerts_sent: int):
         """Envía un resumen del monitoreo realizado."""
-        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+        timestamp = datetime.now(CENTRAL_TZ).strftime("%d/%m/%Y %H:%M %Z")
         
         if alerts_sent > 0:
             # Si se enviaron alertas, el resumen ya está en las alertas individuales
@@ -351,7 +355,7 @@ class NewsMonitorAI:
     def monitor_sources(self):
         """Monitorea todas las fuentes de noticias configuradas."""
         print(f"\n{'='*70}")
-        print(f"🔍 Iniciando monitoreo - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"🔍 Iniciando monitoreo - {datetime.now(CENTRAL_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
         if self.use_ai:
             print(f"🤖 Modo: Análisis con IA (OpenAI)")
         else:

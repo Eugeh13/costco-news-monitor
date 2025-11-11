@@ -6,17 +6,21 @@ VERSIÓN CON ANÁLISIS DE IA
 
 import time
 from datetime import datetime, timedelta
+import pytz
 from main_ai import NewsMonitorAI
+
+# Configurar zona horaria Central (CST/CDT)
+CENTRAL_TZ = pytz.timezone('America/Chicago')
 
 
 def get_next_scheduled_time():
     """
-    Calcula el próximo horario programado (:00 o :30).
+    Calcula el próximo horario programado (:00 o :30) en zona horaria Central.
     
     Returns:
-        datetime: Próximo horario de ejecución
+        datetime: Próximo horario de ejecución (CST/CDT)
     """
-    now = datetime.now()
+    now = datetime.now(CENTRAL_TZ)
     current_minute = now.minute
     
     # Si estamos antes del minuto 30, el próximo es :30
@@ -30,12 +34,12 @@ def get_next_scheduled_time():
 
 
 def wait_until_next_scheduled_time():
-    """Espera hasta el próximo horario programado."""
+    """Espera hasta el próximo horario programado (CST/CDT)."""
     next_time = get_next_scheduled_time()
-    now = datetime.now()
+    now = datetime.now(CENTRAL_TZ)
     wait_seconds = (next_time - now).total_seconds()
     
-    print(f"⏰ Próxima ejecución programada: {next_time.strftime('%H:%M:%S')}")
+    print(f"⏰ Próxima ejecución programada: {next_time.strftime('%H:%M:%S %Z')}")
     print(f"⏳ Esperando {int(wait_seconds)} segundos...\n")
     
     time.sleep(wait_seconds)
@@ -67,7 +71,7 @@ def main():
             
             # Ejecutar monitoreo
             print(f"\n{'='*70}")
-            print(f"🔔 EJECUCIÓN PROGRAMADA - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"🔔 EJECUCIÓN PROGRAMADA - {datetime.now(CENTRAL_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
             print(f"{'='*70}\n")
             
             try:
@@ -77,7 +81,7 @@ def main():
                 print("   El sistema continuará en el próximo horario programado\n")
             
             print(f"\n{'='*70}")
-            print(f"✓ Ejecución completada - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"✓ Ejecución completada - {datetime.now(CENTRAL_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
             print(f"{'='*70}\n")
             
     except KeyboardInterrupt:
