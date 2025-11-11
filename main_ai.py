@@ -19,6 +19,7 @@ from geolocation import GeoLocator
 from notifier_ai import NotifierAI as Notifier
 from storage import NewsStorage
 from time_filter import TimeFilter
+from database import NewsDatabase
 
 # Importar Twitter scraper con autenticación
 try:
@@ -48,6 +49,7 @@ class NewsMonitorAI:
         self.geolocator = GeoLocator()
         self.notifier = Notifier(config.NOTIFICATION_CONFIG)
         self.storage = NewsStorage(config.PROCESSED_NEWS_FILE)
+        self.database = NewsDatabase()  # Base de datos para tracking y duplicados
         
         self.costco_locations = config.COSTCO_LOCATIONS
         self.radius_km = config.RADIUS_KM
@@ -104,8 +106,13 @@ class NewsMonitorAI:
         url = news_item.get('url', '')
         fuente = news_item.get('fuente', '')
         
-        # Verificar si ya fue procesada
+        # Verificar si ya fue procesada (archivo local)
         if url and self.storage.is_processed(url):
+            return False
+        
+        # Verificar duplicados en base de datos (últimas 24 horas)
+        if self.database.enabled and self.database.is_duplicate(titulo, url, fuente, max_hours=24):
+            print(f"   🔄 Noticia duplicada (ya en DB) - Descartada")
             return False
         
         # Paso 0: Verificar antigüedad de la noticia (máximo 1 hora)
@@ -237,6 +244,27 @@ class NewsMonitorAI:
         
         self.notifier.notify(notification_data)
         
+        # Guardar en base de datos
+        if self.database.enabled:
+            db_record = {
+                'titulo': titulo,
+                'tipo_evento': ai_result.get('category', category),
+                'url': url if url else None,
+                'descripcion': summary,
+                'costco_impactado': nearest_costco['nombre'],
+                'fuente': fuente,
+                'severidad': severity,
+                'ubicacion_extraida': location_text,
+                'latitud': coords[0],
+                'longitud': coords[1],
+                'distancia_km': nearest_costco['distancia_km'],
+                'victimas': details.get('victims', 0),
+                'impacto_trafico': details.get('traffic_impact', 'unknown'),
+                'servicios_emergencia': details.get('emergency_services', False)
+            }
+            self.database.save_noticia(db_record)
+            print(f"   💾 Guardada en base de datos")
+        
         # Marcar como procesada
         if url:
             self.storage.mark_as_processed(url)
@@ -257,8 +285,13 @@ class NewsMonitorAI:
         url = news_item.get('url', '')
         fuente = news_item.get('fuente', '')
         
-        # Verificar si ya fue procesada
+        # Verificar si ya fue procesada (archivo local)
         if url and self.storage.is_processed(url):
+            return False
+        
+        # Verificar duplicados en base de datos (últimas 24 horas)
+        if self.database.enabled and self.database.is_duplicate(titulo, url, fuente, max_hours=24):
+            print(f"   🔄 Noticia duplicada (ya en DB) - Descartada")
             return False
         
         # Paso 0: Verificar antigüedad de la noticia (máximo 1 hora)
@@ -346,6 +379,27 @@ class NewsMonitorAI:
         }
         
         self.notifier.notify(notification_data)
+        
+        # Guardar en base de datos (método tradicional)
+        if self.database.enabled:
+            db_record = {
+                'titulo': titulo,
+                'tipo_evento': category,
+                'url': url if url else None,
+                'descripcion': content[:500] if len(content) > 500 else content,
+                'costco_impactado': nearest_costco['nombre'],
+                'fuente': fuente,
+                'severidad': 5,  # Severidad por defecto en modo tradicional
+                'ubicacion_extraida': location_text,
+                'latitud': coords[0],
+                'longitud': coords[1],
+                'distancia_km': nearest_costco['distancia_km'],
+                'victimas': 0,
+                'impacto_trafico': 'unknown',
+                'servicios_emergencia': False
+            }
+            self.database.save_noticia(db_record)
+            print(f"   💾 Guardada en base de datos")
         
         if url:
             self.storage.mark_as_processed(url)
