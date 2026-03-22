@@ -353,19 +353,22 @@ class NewsMonitorV2:
         
         db_record = {
             'titulo': news_item.titulo,
-            'tipo_evento': analysis.get('category', 'desconocido'),
-            'url': news_item.url,
+            'categoria': analysis.get('category', 'desconocido'),
+            'url': news_item.url or '',
             'descripcion': analysis.get('summary', ''),
-            'costco_impactado': nearest_costco['nombre'],
+            'costco_nombre': nearest_costco['nombre'],
             'fuente': news_item.fuente,
             'severidad': analysis.get('severity', 5),
-            'ubicacion_extraida': analysis['location']['extracted'],
+            'ubicacion_texto': analysis['location']['extracted'],
             'latitud': coords[0],
             'longitud': coords[1],
-            'distancia_km': nearest_costco['distancia_km'],
+            'costco_distancia_km': nearest_costco['distancia_km'],
             'victimas': details.get('victims', 0),
+            'heridos': 0,
             'impacto_trafico': details.get('traffic_impact', 'unknown'),
             'servicios_emergencia': details.get('emergency_services', False),
+            'fecha_publicacion': getattr(news_item, 'fecha_pub', None),
+            'alerta_enviada': True,
         }
         
         self.database.save_noticia(db_record)

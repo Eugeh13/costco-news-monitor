@@ -115,14 +115,23 @@ class NewsDatabase:
             noticia_hash = self.generate_hash(titulo)
             cutoff_time = datetime.now(CENTRAL_TZ) - timedelta(hours=max_hours)
             
-            # Buscar por hash o por URL+fuente
-            query = """
-                SELECT id FROM noticias 
-                WHERE (noticia_hash = %s OR (url = %s AND fuente = %s))
-                  AND fecha_deteccion >= %s
-                LIMIT 1
-            """
-            cursor.execute(query, (noticia_hash, url, fuente, cutoff_time))
+            # Buscar por hash o por URL+fuente (solo si URL no está vacía)
+            if url:
+                query = """
+                    SELECT id FROM noticias 
+                    WHERE (noticia_hash = %s OR (url = %s AND fuente = %s))
+                      AND fecha_deteccion >= %s
+                    LIMIT 1
+                """
+                cursor.execute(query, (noticia_hash, url, fuente, cutoff_time))
+            else:
+                query = """
+                    SELECT id FROM noticias 
+                    WHERE noticia_hash = %s
+                      AND fecha_deteccion >= %s
+                    LIMIT 1
+                """
+                cursor.execute(query, (noticia_hash, cutoff_time))
             result = cursor.fetchone()
             
             cursor.close()
@@ -177,6 +186,7 @@ class NewsDatabase:
                     %s, %s,
                     %s
                 )
+                ON CONFLICT (noticia_hash) DO NOTHING
                 RETURNING id
             """
             
@@ -203,13 +213,18 @@ class NewsDatabase:
             )
             
             cursor.execute(query, values)
-            noticia_id = cursor.fetchone()[0]
+            row = cursor.fetchone()
             conn.commit()
             cursor.close()
             conn.close()
             
-            print(f"✓ Noticia guardada en DB (ID: {noticia_id})")
-            return noticia_id
+            if row:
+                noticia_id = row[0]
+                print(f"✓ Noticia guardada en DB (ID: {noticia_id})")
+                return noticia_id
+            else:
+                print(f"⚠️  Noticia ya existe en DB (hash duplicado), omitida")
+                return None
         except Exception as e:
             print(f"⚠️  Error guardando noticia: {e}")
             if conn:
