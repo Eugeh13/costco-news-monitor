@@ -68,6 +68,20 @@ def main():
     monitor = NewsMonitorV2()
 
     try:
+        # Ejecutar inmediatamente al arrancar
+        print(f"\n{'='*70}")
+        print(f"🔔 EJECUCIÓN INICIAL - {datetime.now(CENTRAL_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
+        print(f"{'='*70}\n")
+        try:
+            monitor.run_once()
+        except Exception as e:
+            print(f"\n⚠️ Error en la ejecución inicial: {e}")
+            import traceback
+            traceback.print_exc()
+        print(f"\n{'='*70}")
+        print(f"✓ Ejecución inicial completada - {datetime.now(CENTRAL_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
+        print(f"{'='*70}\n")
+
         while True:
             # Esperar hasta el próximo horario programado
             wait_until_next_scheduled_time()
