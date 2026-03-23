@@ -1,23 +1,31 @@
 """
-Módulo de análisis inteligente v2 - Agente IA con triage.
+Módulo de análisis inteligente v2.1 - Agente IA con triage temporal inteligente.
+
+CAMBIO PRINCIPAL vs v2.0:
+- El triage ahora extrae la HORA DEL EVENTO de cada noticia
+- Compara hora del evento vs hora actual para decidir si el impacto sigue activo
+- No se basa en la redacción ("hubo" vs "hay") sino en la ventana temporal real
+- Ventana de impacto configurable por tipo de evento
+
+Ejemplo:
+- "Choque a las 8am" + hora actual 8:30am → ALERTA (30 min, sigue impactando)
+- "Choque a las 8am" + hora actual 11am → DESCARTAR (3 horas, ya se limpió)
+- "Choque esta madrugada" + hora actual 2pm → DESCARTAR
 
 Arquitectura de 2 pasos:
-1. TRIAGE RÁPIDO: Recibe batch de títulos, descarta irrelevantes en una sola llamada
-2. ANÁLISIS PROFUNDO: Solo para candidatas, análisis completo con structured output
-
-Soporta:
-- OpenAI (GPT-4o-mini) - default, más barato para triage
-- Anthropic Claude (Sonnet) - opcional, mejor razonamiento
-
-Optimización de costos:
-- Triage: 1 llamada IA por batch (~20-50 noticias) en vez de 1 por noticia
-- Análisis profundo: solo ~5-10% de las noticias pasan el triage
+1. TRIAGE RÁPIDO: Batch de títulos → filtra por relevancia + impacto temporal activo
+2. ANÁLISIS PROFUNDO: Solo candidatas con impacto activo → análisis completo
 """
 
 import os
 import json
+from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass
+
+import pytz
+
+CENTRAL_TZ = pytz.timezone('America/Chicago')
 
 # OpenAI (default)
 try:
@@ -34,15 +42,33 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 
+# ============================================================
+# Ventanas de impacto por tipo de evento
+# ============================================================
+
+IMPACT_WINDOWS = {
+    'accidente_vial': 120,       # 2 horas
+    'accidente_vial_grave': 180, # 3 horas
+    'incendio': 180,             # 3 horas
+    'seguridad': 240,            # 4 horas
+    'bloqueo': 360,              # 6 horas
+    'desastre_natural': 480,     # 8 horas
+    'default': 120,              # 2 horas por defecto
+}
+
+
 @dataclass
 class TriageResult:
     """Resultado del triage rápido para una noticia."""
     index: int
     is_candidate: bool
     reason: str
-    estimated_category: str  # accidente, incendio, seguridad, bloqueo, desastre, otro
-    estimated_severity: int  # 1-10 estimado
-    location_hint: str       # Ubicación mencionada (puede ser vaga)
+    estimated_category: str
+    estimated_severity: int
+    location_hint: str
+    event_time_extracted: str
+    estimated_minutes_ago: int
+    impact_still_active: bool
 
 
 @dataclass
@@ -59,19 +85,13 @@ class DeepAnalysisResult:
 
 class AIAnalyzerV2:
     """
-    Analizador de IA con triage inteligente.
+    Analizador de IA con triage temporal inteligente.
     
-    Flujo:
-    1. batch_triage() - Filtra noticias irrelevantes en una sola llamada
-    2. deep_analyze() - Análisis completo solo para candidatas
+    La IA no solo clasifica relevancia, sino que estima CUÁNDO ocurrió
+    el evento y si su impacto sigue activo al momento del monitoreo.
     """
     
     def __init__(self, provider: str = "openai", model: Optional[str] = None):
-        """
-        Args:
-            provider: "openai" o "anthropic"
-            model: Modelo específico. Default: gpt-4o-mini (openai) o claude-sonnet-4-20250514 (anthropic)
-        """
         self.provider = provider.lower()
         
         if self.provider == "openai":
@@ -86,17 +106,16 @@ class AIAnalyzerV2:
             self.client = anthropic.Anthropic()
             self.model = model or "claude-sonnet-4-20250514"
         else:
-            raise ValueError(f"Provider no soportado: {provider}. Usa 'openai' o 'anthropic'")
+            raise ValueError(f"Provider no soportado: {provider}")
         
-        print(f"  ✓ AI Analyzer v2: {self.provider} / {self.model}")
-    
+        print(f"  ✓ AI Analyzer v2.1: {self.provider} / {self.model}")
+
     # ========================================================
     # Capa de abstracción para llamadas a IA
     # ========================================================
     
     def _call_ai(self, system_prompt: str, user_prompt: str, 
                  max_tokens: int = 1000, temperature: float = 0.1) -> Optional[str]:
-        """Llama al modelo de IA configurado. Retorna texto de respuesta."""
         try:
             if self.provider == "openai":
                 response = self.client.chat.completions.create(
@@ -128,11 +147,9 @@ class AIAnalyzerV2:
             return None
     
     def _parse_json(self, text: str) -> Optional[dict]:
-        """Parsea JSON de la respuesta, con limpieza."""
         if not text:
             return None
         try:
-            # Limpiar posibles artefactos
             text = text.strip()
             if text.startswith('```json'):
                 text = text[7:]
@@ -146,29 +163,26 @@ class AIAnalyzerV2:
             print(f"  Respuesta: {text[:200]}...")
             return None
 
+    def _get_current_time_str(self) -> str:
+        now = datetime.now(CENTRAL_TZ)
+        return now.strftime("%H:%M del %d/%m/%Y")
+
     # ========================================================
-    # PASO 1: Triage rápido (batch)
+    # PASO 1: Triage rápido con análisis temporal
     # ========================================================
     
     def batch_triage(self, news_items: List[dict]) -> List[TriageResult]:
         """
-        Filtra un batch de noticias en UNA SOLA llamada a la IA.
+        Filtra un batch de noticias en UNA SOLA llamada.
         
-        En vez de hacer 30-50 llamadas individuales, enviamos todos los títulos
-        en un solo prompt y la IA clasifica cuáles son candidatas.
-        
-        Args:
-            news_items: Lista de dicts con 'titulo' y opcionalmente 'contenido'
-        
-        Returns:
-            Lista de TriageResult para cada noticia
-        
-        Costo estimado: ~$0.001-0.003 USD por batch de 50 noticias
+        La IA extrae la hora del evento y estima si el impacto
+        sigue activo comparando con la hora actual.
         """
         if not news_items:
             return []
         
-        # Construir lista numerada de titulares
+        current_time = self._get_current_time_str()
+        
         titulares = []
         for i, item in enumerate(news_items):
             titulo = item.get('titulo', '')[:120]
@@ -177,28 +191,47 @@ class AIAnalyzerV2:
         
         titulares_text = "\n".join(titulares)
         
-        system_prompt = """Eres un filtro de noticias experto para un sistema de monitoreo de emergencias 
-en Monterrey, Nuevo León, México. Tu trabajo es hacer triage RÁPIDO de titulares.
+        system_prompt = """Eres un filtro para un sistema de ALERTAS EN TIEMPO REAL de emergencias 
+en Monterrey, NL. Tu objetivo es identificar eventos que ESTÁN IMPACTANDO LA ZONA EN ESTE MOMENTO.
+
+NO es un resumen de noticias — es un sistema de ALERTA ACTIVA. Solo interesan eventos cuyo 
+impacto (vialidad cortada, zona acordonada, peligro activo) sigue presente AHORA MISMO.
 
 Respondes en JSON."""
 
-        user_prompt = f"""Analiza estos {len(news_items)} titulares de noticias y clasifica cuáles son CANDIDATAS 
-para un sistema de monitoreo de emergencias cerca de sucursales Costco en Monterrey, NL.
+        user_prompt = f"""HORA ACTUAL: {current_time} (zona horaria: Central/CDT)
+
+Analiza estos {len(news_items)} titulares. Para cada uno:
+
+1. ¿Es un evento de alto impacto en Monterrey? (accidente, incendio, balacera, bloqueo, desastre)
+2. ¿CUÁNDO ocurrió? Extrae la hora del evento o estímala con pistas del texto
+3. ¿Cuántos MINUTOS han pasado desde el evento hasta la HORA ACTUAL?
+4. ¿El impacto en la zona SIGUE ACTIVO ahora? Usa estas ventanas:
+   - Accidente vial: impacto ~2 horas después
+   - Accidente grave (víctimas fatales, múltiples vehículos): ~3 horas
+   - Incendio activo: ~3 horas
+   - Balacera/seguridad: ~4 horas
+   - Bloqueo/manifestación: ~6 horas
+   - Inundación/desastre: ~8 horas
 
 TITULARES:
 {titulares_text}
 
-CRITERIOS para ser CANDIDATA (debe cumplir TODOS):
-1. Es un evento de ALTO IMPACTO: accidente vial, incendio, balacera, bloqueo, desastre natural
-2. Ocurrió en MONTERREY o su área metropolitana (San Pedro, San Nicolás, Guadalupe, Apodaca, Santa Catarina, Escobedo, García)
-3. Es RECIENTE/ACTUAL (no histórica, no programada a futuro)
-4. NO es: espectáculos, deportes, política general, opinión, economía general
+REGLAS CLAVE:
+- Si dice "a las 8am" y ahora son las 8:30am → 30 min → impacto ACTIVO (accidente dura ~2h)
+- Si dice "a las 8am" y ahora son las 11am → 180 min → impacto NO activo
+- Si dice "esta madrugada" y ahora es la tarde → impacto NO activo
+- Si dice "ayer", "la semana pasada" → DESCARTAR
+- Si dice "hace minutos", "al momento", "se reporta" → impacto ACTIVO
+- Si NO puedes determinar la hora pero la noticia parece muy reciente → asumir impacto activo
+- Notas de SEGUIMIENTO ("murió la persona atropellada", "identifican a víctima") → DESCARTAR
+- Obituarios, recuentos, aniversarios → DESCARTAR
 
-EXCLUIR inmediatamente:
-- Noticias de otras ciudades/estados (CDMX, Guadalajara, etc.)
-- Noticias históricas ("hace 5 años", "aniversario de")
-- Farándula, entretenimiento, deportes
-- Política general, economía sin impacto local directo
+UBICACIÓN (debe ser):
+- Monterrey o área metropolitana: San Pedro, San Nicolás, Guadalupe, Apodaca, Santa Catarina, Escobedo, García
+- NO otras ciudades ni municipios lejanos
+
+EXCLUIR: espectáculos, deportes, política, economía, farándula
 
 Responde con JSON:
 {{
@@ -206,20 +239,27 @@ Responde con JSON:
     {{
       "index": 0,
       "is_candidate": true/false,
-      "reason": "razón breve (max 15 palabras)",
+      "reason": "razón breve (max 20 palabras)",
       "category": "accidente_vial|incendio|seguridad|bloqueo|desastre_natural|no_relevante",
       "severity_estimate": 1-10,
-      "location_hint": "ubicación mencionada o 'no_especifica'"
+      "location_hint": "ubicación mencionada o 'no_especifica'",
+      "event_time": "hora extraída ('08:30', 'hace 20 min', 'esta mañana', 'no_detectada')",
+      "minutes_ago": número estimado de minutos desde el evento (-1 si no se puede),
+      "impact_active": true/false
     }}
   ]
 }}
 
-IMPORTANTE: Incluye TODOS los {len(news_items)} titulares en la respuesta, no omitas ninguno."""
+IMPORTANTE: 
+- Incluye TODOS los {len(news_items)} titulares
+- is_candidate = true SOLO si: evento de alto impacto + EN Monterrey + impacto SIGUE activo
+- Si evento es relevante PERO el impacto ya no está activo → is_candidate = false, reason: "impacto ya no activo (~X horas)"
+"""
 
         result_text = self._call_ai(
             system_prompt, 
             user_prompt, 
-            max_tokens=min(4000, len(news_items) * 80),  # Escalar tokens al batch
+            max_tokens=min(5000, len(news_items) * 100),
             temperature=0.1
         )
         
@@ -230,7 +270,10 @@ IMPORTANTE: Incluye TODOS los {len(news_items)} titulares en la respuesta, no om
                 TriageResult(
                     index=i, is_candidate=True, reason="triage_fallback",
                     estimated_category="desconocido", estimated_severity=5,
-                    location_hint="no_especifica"
+                    location_hint="no_especifica",
+                    event_time_extracted="no_detectada",
+                    estimated_minutes_ago=-1,
+                    impact_still_active=True
                 )
                 for i in range(len(news_items))
             ]
@@ -244,10 +287,22 @@ IMPORTANTE: Incluye TODOS los {len(news_items)} titulares en la respuesta, no om
                 estimated_category=item.get('category', 'no_relevante'),
                 estimated_severity=item.get('severity_estimate', 5),
                 location_hint=item.get('location_hint', 'no_especifica'),
+                event_time_extracted=item.get('event_time', 'no_detectada'),
+                estimated_minutes_ago=item.get('minutes_ago', -1),
+                impact_still_active=item.get('impact_active', False),
             ))
         
         candidates = sum(1 for r in triage_results if r.is_candidate)
-        print(f"  🤖 Triage: {candidates}/{len(news_items)} candidatas")
+        relevant_but_old = sum(
+            1 for r in triage_results 
+            if not r.is_candidate 
+            and r.estimated_category != 'no_relevante'
+            and 'impacto' in r.reason.lower()
+        )
+        
+        print(f"  🤖 Triage: {candidates}/{len(news_items)} con impacto activo")
+        if relevant_but_old > 0:
+            print(f"     ({relevant_but_old} eventos relevantes descartados por impacto ya no activo)")
         
         return triage_results
 
@@ -257,38 +312,39 @@ IMPORTANTE: Incluye TODOS los {len(news_items)} titulares en la respuesta, no om
     
     def deep_analyze(self, title: str, content: str) -> Optional[Dict]:
         """
-        Análisis profundo de una noticia candidata.
-        
-        Solo se llama para noticias que pasaron el triage.
-        Extrae: relevancia, categoría, severidad, ubicación precisa, resumen, detalles.
-        
-        Args:
-            title: Título de la noticia
-            content: Contenido completo del artículo
-        
-        Returns:
-            Dict con análisis completo o None si falla
+        Análisis profundo con evaluación temporal de impacto.
         """
-        system_prompt = """Eres un analista experto en seguridad y emergencias de Monterrey, Nuevo León, México. 
-Analizas noticias para un sistema de monitoreo cerca de sucursales Costco.
+        current_time = self._get_current_time_str()
+        
+        system_prompt = """Eres un analista de emergencias en tiempo real para Monterrey, NL.
+Tu análisis se usa para ALERTAS ACTIVAS — solo importan eventos cuyo impacto sigue presente.
 Respondes en JSON."""
 
-        user_prompt = f"""Analiza esta noticia en detalle:
+        user_prompt = f"""HORA ACTUAL: {current_time}
+
+Analiza esta noticia:
 
 TÍTULO: {title}
 CONTENIDO: {content[:2500]}
 
-Responde con este JSON EXACTO:
+Responde con este JSON:
 {{
   "is_relevant": true/false,
   "category": "accidente_vial|incendio|seguridad|bloqueo|desastre_natural|no_relevante",
   "severity": 1-10,
   "location": {{
-    "extracted": "ubicación exacta (calle, avenida, colonia, cruce)",
-    "normalized": "ubicación para geocodificación (ej: 'Av Lázaro Cárdenas y Fundadores, San Pedro Garza García, NL')",
-    "municipality": "municipio (Monterrey|San Pedro|San Nicolás|Guadalupe|Apodaca|Santa Catarina|Escobedo|García|otro)",
+    "extracted": "ubicación exacta (calle, cruce, colonia)",
+    "normalized": "para geocodificación (ej: 'Av Lázaro Cárdenas y Fundadores, San Pedro Garza García, NL')",
+    "municipality": "municipio",
     "confidence": 0.0-1.0,
     "is_specific": true/false
+  }},
+  "event_time": {{
+    "extracted": "hora del evento como aparece en la noticia",
+    "estimated_time": "HH:MM formato 24h",
+    "minutes_since_event": minutos desde el evento hasta ahora,
+    "impact_still_active": true/false,
+    "impact_reasoning": "por qué sí/no sigue activo (1 línea)"
   }},
   "summary": "resumen en max 100 caracteres",
   "details": {{
@@ -296,37 +352,32 @@ Responde con este JSON EXACTO:
     "traffic_impact": "none|low|medium|high",
     "emergency_services": true/false,
     "time_reference": "current|recent|past|future",
-    "affected_roads": ["lista de vialidades afectadas"]
+    "affected_roads": ["vialidades afectadas"]
   }},
-  "exclusion_reason": null o "razón si no es relevante"
+  "exclusion_reason": null o "razón si no es relevante o impacto ya no activo"
 }}
 
 REGLAS:
-- severity 1-3: menor (sin heridos, daños leves)
-- severity 4-6: moderado (heridos leves, tráfico afectado)
-- severity 7-8: grave (heridos graves, múltiples vehículos, fuego activo)
-- severity 9-10: crítico (víctimas fatales, peligro inminente)
-- Si la ubicación es genérica ("Monterrey"), marca is_specific: false
-- Si es noticia histórica, is_relevant: false
-- affected_roads: lista las vialidades principales mencionadas"""
+- is_relevant = true SOLO si evento de alto impacto Y el impacto SIGUE ACTIVO ahora
+- Accidentes: impacto activo ~2h (graves ~3h) | Incendios: ~3h | Seguridad: ~4h | Bloqueos: ~6h
+- Notas de seguimiento → is_relevant: false
+- severity 1-3: menor | 4-6: moderado | 7-8: grave | 9-10: crítico"""
 
-        result_text = self._call_ai(system_prompt, user_prompt, max_tokens=800, temperature=0.1)
+        result_text = self._call_ai(system_prompt, user_prompt, max_tokens=1000, temperature=0.1)
         result = self._parse_json(result_text)
         
         return result
 
     # ========================================================
-    # Métodos de compatibilidad con ai_analyzer.py original
+    # Métodos de compatibilidad
     # ========================================================
     
     def analyze_news(self, title: str, content: str) -> Optional[Dict]:
-        """Compatible con AINewsAnalyzer.analyze_news()"""
         return self.deep_analyze(title, content)
     
     def extract_location_ai(self, text: str) -> Optional[Dict]:
-        """Extrae ubicación de un texto."""
         system_prompt = "Eres un experto en geografía de Monterrey, NL. Respondes en JSON."
-        user_prompt = f"""Extrae la ubicación de esta noticia de Monterrey:
+        user_prompt = f"""Extrae la ubicación de esta noticia:
 
 {text[:1000]}
 
@@ -336,7 +387,6 @@ JSON: {{"location": "ubicación exacta", "normalized": "para geocodificar", "con
         return self._parse_json(result_text)
     
     def classify_severity(self, title: str, content: str) -> int:
-        """Clasifica severidad rápidamente."""
         system_prompt = "Eres un analista de emergencias. Respondes en JSON."
         user_prompt = f"""Severidad del 1-10:
 TÍTULO: {title}
@@ -348,11 +398,10 @@ JSON: {{"severity": número}}"""
         return result.get("severity", 5) if result else 5
     
     def validate_relevance(self, title: str, content: str) -> Tuple[bool, Optional[str]]:
-        """Valida relevancia de una noticia."""
         result = self.deep_analyze(title, content)
         if result:
             return result.get('is_relevant', False), result.get('exclusion_reason')
-        return True, None  # En caso de error, dejar pasar
+        return True, None
 
 
 # ============================================================
@@ -360,18 +409,6 @@ JSON: {{"severity": número}}"""
 # ============================================================
 
 def create_analyzer(provider: str = None, model: str = None) -> AIAnalyzerV2:
-    """
-    Crea el analizador con la mejor configuración disponible.
-    
-    Prioridad:
-    1. Si OPENAI_API_KEY está configurada → OpenAI
-    2. Si ANTHROPIC_API_KEY está configurada → Anthropic
-    3. Error si ninguna está disponible
-    
-    Se puede forzar con variables de entorno:
-    - AI_PROVIDER=openai|anthropic
-    - AI_MODEL=gpt-4o-mini|claude-sonnet-4-20250514|etc
-    """
     provider = provider or os.environ.get('AI_PROVIDER', '').lower()
     model = model or os.environ.get('AI_MODEL', '')
     
@@ -393,62 +430,44 @@ def create_analyzer(provider: str = None, model: str = None) -> AIAnalyzerV2:
 # ============================================================
 
 def test_triage():
-    """Prueba el sistema de triage."""
     print("""
 ╔════════════════════════════════════════╗
-║  Test: AI Analyzer v2 - Triage        ║
+║  Test: AI Analyzer v2.1 - Temporal    ║
 ╚════════════════════════════════════════╝
 """)
     
     analyzer = create_analyzer()
+    now = datetime.now(CENTRAL_TZ)
+    print(f"Hora actual: {now.strftime('%H:%M %Z')}\n")
     
-    # Simular batch de noticias
     test_batch = [
-        {"titulo": "Choque múltiple en Av. Lázaro Cárdenas deja 3 heridos en San Pedro",
+        {"titulo": "Choque múltiple en Av. Lázaro Cárdenas deja 3 heridos hace 20 minutos",
          "contenido": "Un accidente vehicular en la avenida Lázaro Cárdenas..."},
-        {"titulo": "Bad Bunny anuncia nueva gira por Latinoamérica",
-         "contenido": "El cantante puertorriqueño anunció fechas..."},
-        {"titulo": "Incendio en bodega de Apodaca moviliza a bomberos",
-         "contenido": "Una bodega en el municipio de Apodaca se incendió..."},
-        {"titulo": "PIB de México crece 2.3% en el tercer trimestre",
-         "contenido": "La economía mexicana registró un crecimiento..."},
-        {"titulo": "Balacera en Escobedo deja un muerto y 2 heridos",
-         "contenido": "Un enfrentamiento armado en el municipio..."},
-        {"titulo": "Bloqueo en carretera a Laredo afecta tráfico en García",
-         "contenido": "Manifestantes bloquearon la carretera..."},
-        {"titulo": "Terremoto de 7.1 sacude Turquía",
-         "contenido": "Un fuerte sismo de magnitud 7.1..."},
-        {"titulo": "Inundaciones en colonia Independencia por lluvias",
-         "contenido": "Las intensas lluvias de esta tarde provocaron..."},
+        {"titulo": "Muere ciclista que fue atropellado ayer en Morones Prieto",
+         "contenido": "Falleció en el hospital el ciclista que fue embestido..."},
+        {"titulo": "Incendio en bodega de Apodaca, bomberos en el lugar",
+         "contenido": "Se reporta incendio activo en bodega..."},
+        {"titulo": "Recuento: los 5 accidentes más graves del mes en Monterrey",
+         "contenido": "Durante marzo se registraron varios accidentes..."},
+        {"titulo": "Balacera esta madrugada en Escobedo deja un muerto",
+         "contenido": "Un enfrentamiento armado a las 3am en el municipio..."},
+        {"titulo": "Bloqueo activo en carretera a Laredo, manifestantes cierran paso",
+         "contenido": "Manifestantes mantienen bloqueada la carretera..."},
     ]
     
-    # Triage
-    print("Ejecutando triage...")
     results = analyzer.batch_triage(test_batch)
     
-    print(f"\nResultados del triage:")
+    print(f"\nResultados:")
     print(f"{'='*70}")
     
     for r in results:
-        status = "✅ CANDIDATA" if r.is_candidate else "❌ Descartada"
+        status = "✅ ALERTA ACTIVA" if r.is_candidate else "❌ Descartada"
         print(f"  [{r.index}] {status}")
         print(f"      {test_batch[r.index]['titulo'][:60]}...")
         print(f"      Razón: {r.reason}")
-        print(f"      Cat: {r.estimated_category} | Sev: {r.estimated_severity} | Ubic: {r.location_hint}")
+        print(f"      Hora evento: {r.event_time_extracted} | ~{r.estimated_minutes_ago} min ago")
+        print(f"      Impacto activo: {'SÍ' if r.impact_still_active else 'NO'}")
         print()
-    
-    # Análisis profundo de la primera candidata
-    candidates = [r for r in results if r.is_candidate]
-    if candidates:
-        first = candidates[0]
-        item = test_batch[first.index]
-        print(f"\n{'='*70}")
-        print(f"Análisis profundo de: {item['titulo'][:60]}...")
-        print(f"{'='*70}\n")
-        
-        analysis = analyzer.deep_analyze(item['titulo'], item['contenido'])
-        if analysis:
-            print(json.dumps(analysis, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
