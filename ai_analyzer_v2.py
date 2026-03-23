@@ -1,20 +1,22 @@
 """
-Módulo de análisis inteligente v2.1 - Agente IA con triage temporal inteligente.
+Agente de Inteligencia Operacional para Costco Monterrey v3.0
 
-CAMBIO PRINCIPAL vs v2.0:
-- El triage ahora extrae la HORA DEL EVENTO de cada noticia
-- Compara hora del evento vs hora actual para decidir si el impacto sigue activo
-- No se basa en la redacción ("hubo" vs "hay") sino en la ventana temporal real
-- Ventana de impacto configurable por tipo de evento
+Este NO es un clasificador de noticias. Es un AGENTE que razona como un 
+gerente de operaciones de Costco. Lee una noticia y piensa:
 
-Ejemplo:
-- "Choque a las 8am" + hora actual 8:30am → ALERTA (30 min, sigue impactando)
-- "Choque a las 8am" + hora actual 11am → DESCARTAR (3 horas, ya se limpió)
-- "Choque esta madrugada" + hora actual 2pm → DESCARTAR
+1. ¿Esto está pasando AHORA MISMO?
+2. ¿Afecta a alguna de mis tiendas? ¿Cómo?
+   - ¿Clientes no pueden llegar? (vialidad bloqueada)
+   - ¿Empleados en riesgo? (balacera cerca)
+   - ¿La tienda debe cerrar o evacuar? (incendio, inundación)
+   - ¿Proveedores/camiones no pueden entregar? (bloqueo en ruta)
+3. ¿Qué acción debe tomar Costco?
 
-Arquitectura de 2 pasos:
-1. TRIAGE RÁPIDO: Batch de títulos → filtra por relevancia + impacto temporal activo
-2. ANÁLISIS PROFUNDO: Solo candidatas con impacto activo → análisis completo
+Arquitectura:
+- TRIAGE: La IA recibe la hora actual + las 3 ubicaciones Costco + las noticias
+  y razona sobre cuáles tienen impacto operacional ACTIVO
+- ANÁLISIS PROFUNDO: Para candidatas, genera un reporte de inteligencia
+  con impacto específico por tienda y acciones recomendadas
 """
 
 import os
@@ -27,14 +29,12 @@ import pytz
 
 CENTRAL_TZ = pytz.timezone('America/Chicago')
 
-# OpenAI (default)
 try:
     from openai import OpenAI
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
 
-# Anthropic (opcional)
 try:
     import anthropic
     ANTHROPIC_AVAILABLE = True
@@ -43,23 +43,44 @@ except ImportError:
 
 
 # ============================================================
-# Ventanas de impacto por tipo de evento
+# Contexto operacional de Costco Monterrey
 # ============================================================
 
-IMPACT_WINDOWS = {
-    'accidente_vial': 120,       # 2 horas
-    'accidente_vial_grave': 180, # 3 horas
-    'incendio': 180,             # 3 horas
-    'seguridad': 240,            # 4 horas
-    'bloqueo': 360,              # 6 horas
-    'desastre_natural': 480,     # 8 horas
-    'default': 120,              # 2 horas por defecto
-}
+COSTCO_CONTEXT = """
+TIENDAS COSTCO EN MONTERREY (tu responsabilidad):
+
+1. COSTCO CARRETERA NACIONAL
+   - Dirección: Carretera Nacional Km. 268, Col. La Estanzuela
+   - Vialidades clave: Carretera Nacional, Av. Alfonso Reyes, Av. Revolución
+   - Zona: Sur de Monterrey, camino a Santiago
+   - Riesgo principal: Accidentes en carretera, crecidas de río
+
+2. COSTCO CUMBRES
+   - Dirección: Alejandro de Rodas 6767, Cumbres
+   - Vialidades clave: Av. Alejandro de Rodas, Av. Lincoln, Paseo de los Leones
+   - Zona: Noroeste de Monterrey
+   - Riesgo principal: Tráfico pesado, bloqueos en Lincoln
+
+3. COSTCO VALLE ORIENTE
+   - Dirección: Av. Lázaro Cárdenas 800, San Pedro Garza García
+   - Vialidades clave: Av. Lázaro Cárdenas, Av. Vasconcelos, Av. Morones Prieto, Constitución
+   - Zona: San Pedro, zona de alto tráfico
+   - Riesgo principal: Accidentes en Lázaro Cárdenas, eventos en zona de hospitales
+
+RADIO DE MONITOREO: 3 km alrededor de cada tienda.
+
+TIPOS DE IMPACTO OPERACIONAL:
+- ACCESO CLIENTES: Vialidad principal bloqueada → clientes no pueden llegar
+- SEGURIDAD PERSONAS: Balacera/incendio cerca → riesgo para empleados y clientes
+- EVACUACIÓN: Amenaza directa a la tienda → cerrar y evacuar
+- CADENA SUMINISTRO: Bloqueo en ruta de proveedores → afecta entregas
+- REPUTACIONAL: Evento grave muy cerca → percepción de inseguridad en la zona
+"""
 
 
 @dataclass
 class TriageResult:
-    """Resultado del triage rápido para una noticia."""
+    """Resultado del triage del agente."""
     index: int
     is_candidate: bool
     reason: str
@@ -69,26 +90,16 @@ class TriageResult:
     event_time_extracted: str
     estimated_minutes_ago: int
     impact_still_active: bool
-
-
-@dataclass
-class DeepAnalysisResult:
-    """Resultado del análisis profundo."""
-    is_relevant: bool
-    category: str
-    severity: int
-    location: dict
-    summary: str
-    details: dict
-    exclusion_reason: Optional[str]
+    costco_affected: str          # "carretera_nacional", "cumbres", "valle_oriente", "ninguno", "multiples"
+    operational_impact_type: str   # "acceso_clientes", "seguridad_personas", "evacuacion", "cadena_suministro", "ninguno"
 
 
 class AIAnalyzerV2:
     """
-    Analizador de IA con triage temporal inteligente.
+    Agente de Inteligencia Operacional para Costco Monterrey.
     
-    La IA no solo clasifica relevancia, sino que estima CUÁNDO ocurrió
-    el evento y si su impacto sigue activo al momento del monitoreo.
+    Piensa como un gerente de operaciones que necesita decidir
+    en tiempo real si una situación requiere acción.
     """
     
     def __init__(self, provider: str = "openai", model: Optional[str] = None):
@@ -108,14 +119,14 @@ class AIAnalyzerV2:
         else:
             raise ValueError(f"Provider no soportado: {provider}")
         
-        print(f"  ✓ AI Analyzer v2.1: {self.provider} / {self.model}")
+        print(f"  ✓ Agente Costco Intel v3.0: {self.provider} / {self.model}")
 
     # ========================================================
-    # Capa de abstracción para llamadas a IA
+    # Llamada a IA
     # ========================================================
     
     def _call_ai(self, system_prompt: str, user_prompt: str, 
-                 max_tokens: int = 1000, temperature: float = 0.1) -> Optional[str]:
+                 max_tokens: int = 1000, temperature: float = 0.15) -> Optional[str]:
         try:
             if self.provider == "openai":
                 response = self.client.chat.completions.create(
@@ -134,7 +145,7 @@ class AIAnalyzerV2:
                 response = self.client.messages.create(
                     model=self.model,
                     max_tokens=max_tokens,
-                    system=system_prompt + "\n\nIMPORTANTE: Responde SOLO con JSON válido, sin texto adicional.",
+                    system=system_prompt + "\n\nResponde SOLO con JSON válido.",
                     messages=[
                         {"role": "user", "content": user_prompt}
                     ],
@@ -143,7 +154,7 @@ class AIAnalyzerV2:
                 return response.content[0].text
                 
         except Exception as e:
-            print(f"  ⚠️ Error en llamada IA ({self.provider}): {e}")
+            print(f"  ⚠️ Error IA ({self.provider}): {e}")
             return None
     
     def _parse_json(self, text: str) -> Optional[dict]:
@@ -159,24 +170,24 @@ class AIAnalyzerV2:
                 text = text[:-3]
             return json.loads(text.strip())
         except json.JSONDecodeError as e:
-            print(f"  ⚠️ Error parseando JSON: {e}")
-            print(f"  Respuesta: {text[:200]}...")
+            print(f"  ⚠️ JSON parse error: {e}")
             return None
 
     def _get_current_time_str(self) -> str:
         now = datetime.now(CENTRAL_TZ)
-        return now.strftime("%H:%M del %d/%m/%Y")
+        return now.strftime("%H:%M del %A %d/%m/%Y")
 
     # ========================================================
-    # PASO 1: Triage rápido con análisis temporal
+    # TRIAGE: El agente evalúa impacto operacional
     # ========================================================
     
     def batch_triage(self, news_items: List[dict]) -> List[TriageResult]:
         """
-        Filtra un batch de noticias en UNA SOLA llamada.
-        
-        La IA extrae la hora del evento y estima si el impacto
-        sigue activo comparando con la hora actual.
+        El agente recibe un batch de noticias y razona:
+        - ¿Está pasando ahora?
+        - ¿Afecta a algún Costco?
+        - ¿Qué tipo de impacto operacional tiene?
+        - ¿Costco necesita actuar?
         """
         if not news_items:
             return []
@@ -185,53 +196,52 @@ class AIAnalyzerV2:
         
         titulares = []
         for i, item in enumerate(news_items):
-            titulo = item.get('titulo', '')[:120]
-            snippet = item.get('contenido', '')[:80]
+            titulo = item.get('titulo', '')[:130]
+            snippet = item.get('contenido', '')[:100]
             titulares.append(f"{i}: {titulo} | {snippet}")
         
         titulares_text = "\n".join(titulares)
         
-        system_prompt = """Eres un filtro para un sistema de ALERTAS EN TIEMPO REAL de emergencias 
-en Monterrey, NL. Tu objetivo es identificar eventos que ESTÁN IMPACTANDO LA ZONA EN ESTE MOMENTO.
+        system_prompt = f"""Eres el agente de inteligencia operacional de Costco Monterrey. 
+Tu trabajo es monitorear noticias en tiempo real y determinar cuáles representan 
+una AMENAZA ACTIVA para las operaciones de las tiendas Costco.
 
-NO es un resumen de noticias — es un sistema de ALERTA ACTIVA. Solo interesan eventos cuyo 
-impacto (vialidad cortada, zona acordonada, peligro activo) sigue presente AHORA MISMO.
+{COSTCO_CONTEXT}
+
+Piensas como un gerente de operaciones: "¿Esto afecta a mi tienda AHORA MISMO? 
+¿Mis clientes pueden llegar? ¿Mis empleados están seguros? ¿Necesito hacer algo?"
 
 Respondes en JSON."""
 
-        user_prompt = f"""HORA ACTUAL: {current_time} (zona horaria: Central/CDT)
+        user_prompt = f"""HORA ACTUAL: {current_time} (CDT - Monterrey)
 
-Analiza estos {len(news_items)} titulares. Para cada uno:
+Evalúa estos {len(news_items)} titulares como agente de inteligencia de Costco.
 
-1. ¿Es un evento de alto impacto en Monterrey? (accidente, incendio, balacera, bloqueo, desastre)
-2. ¿CUÁNDO ocurrió? Extrae la hora del evento o estímala con pistas del texto
-3. ¿Cuántos MINUTOS han pasado desde el evento hasta la HORA ACTUAL?
-4. ¿El impacto en la zona SIGUE ACTIVO ahora? Usa estas ventanas:
-   - Accidente vial: impacto ~2 horas después
-   - Accidente grave (víctimas fatales, múltiples vehículos): ~3 horas
-   - Incendio activo: ~3 horas
-   - Balacera/seguridad: ~4 horas
-   - Bloqueo/manifestación: ~6 horas
-   - Inundación/desastre: ~8 horas
+Para cada noticia, razona:
+1. ¿Es un evento de emergencia? (accidente, incendio, balacera, bloqueo, inundación)
+2. ¿Está en Monterrey/área metropolitana? ¿Cerca de algún Costco?
+3. ¿CUÁNDO ocurrió? Extrae la hora o estímala
+4. ¿El impacto SIGUE ACTIVO ahora? (no sirve un choque de hace 5 horas)
+5. ¿Cómo afecta a Costco específicamente?
 
 TITULARES:
 {titulares_text}
 
-REGLAS CLAVE:
-- Si dice "a las 8am" y ahora son las 8:30am → 30 min → impacto ACTIVO (accidente dura ~2h)
-- Si dice "a las 8am" y ahora son las 11am → 180 min → impacto NO activo
-- Si dice "esta madrugada" y ahora es la tarde → impacto NO activo
-- Si dice "ayer", "la semana pasada" → DESCARTAR
-- Si dice "hace minutos", "al momento", "se reporta" → impacto ACTIVO
-- Si NO puedes determinar la hora pero la noticia parece muy reciente → asumir impacto activo
-- Notas de SEGUIMIENTO ("murió la persona atropellada", "identifican a víctima") → DESCARTAR
-- Obituarios, recuentos, aniversarios → DESCARTAR
+VENTANAS DE IMPACTO ACTIVO:
+- Accidente vial simple: ~2 horas después del evento
+- Accidente grave (víctimas, múltiples vehículos): ~3 horas
+- Incendio: ~3 horas (zona acordonada, humo)
+- Balacera/enfrentamiento: ~4 horas (zona acordonada, presencia militar)
+- Bloqueo/manifestación: hasta que se levante (puede ser todo el día)
+- Inundación: ~8 horas
 
-UBICACIÓN (debe ser):
-- Monterrey o área metropolitana: San Pedro, San Nicolás, Guadalupe, Apodaca, Santa Catarina, Escobedo, García
-- NO otras ciudades ni municipios lejanos
-
-EXCLUIR: espectáculos, deportes, política, economía, farándula
+DESCARTA INMEDIATAMENTE:
+- Noticias de OTRAS CIUDADES (CDMX, Guadalajara, Torreón, Durango, etc.)
+- Municipios lejanos de NL (Linares, Santiago, Cadereyta, Pesquería)
+- Notas de SEGUIMIENTO ("murió el herido de ayer", "identifican a víctima")
+- Recuentos, estadísticas, aniversarios, opinión
+- Deportes, espectáculos, política, farándula, economía general
+- Eventos FUTUROS ("mañana habrá cierre vial por evento")
 
 Responde con JSON:
 {{
@@ -239,33 +249,36 @@ Responde con JSON:
     {{
       "index": 0,
       "is_candidate": true/false,
-      "reason": "razón breve (max 20 palabras)",
+      "reason": "razonamiento breve desde perspectiva Costco (max 25 palabras)",
       "category": "accidente_vial|incendio|seguridad|bloqueo|desastre_natural|no_relevante",
       "severity_estimate": 1-10,
-      "location_hint": "ubicación mencionada o 'no_especifica'",
-      "event_time": "hora extraída ('08:30', 'hace 20 min', 'esta mañana', 'no_detectada')",
-      "minutes_ago": número estimado de minutos desde el evento (-1 si no se puede),
-      "impact_active": true/false
+      "location_hint": "ubicación del evento",
+      "event_time": "hora extraída o estimada del evento",
+      "minutes_ago": minutos desde el evento (-1 si no se puede determinar),
+      "impact_active": true/false,
+      "costco_affected": "carretera_nacional|cumbres|valle_oriente|multiples|ninguno",
+      "operational_impact": "acceso_clientes|seguridad_personas|evacuacion|cadena_suministro|ninguno"
     }}
   ]
 }}
 
-IMPORTANTE: 
-- Incluye TODOS los {len(news_items)} titulares
-- is_candidate = true SOLO si: evento de alto impacto + EN Monterrey + impacto SIGUE activo
-- Si evento es relevante PERO el impacto ya no está activo → is_candidate = false, reason: "impacto ya no activo (~X horas)"
+RECUERDA: is_candidate = true SOLO si:
+✓ Evento de emergencia real
+✓ En Monterrey / área metropolitana  
+✓ El impacto SIGUE ACTIVO en este momento
+✓ Afecta o podría afectar operaciones de al menos un Costco
 """
 
         result_text = self._call_ai(
             system_prompt, 
             user_prompt, 
-            max_tokens=min(5000, len(news_items) * 100),
-            temperature=0.1
+            max_tokens=min(6000, len(news_items) * 120),
+            temperature=0.15
         )
         
         parsed = self._parse_json(result_text)
         if not parsed or 'results' not in parsed:
-            print(f"  ⚠️ Triage falló, marcando todas como candidatas (fallback)")
+            print(f"  ⚠️ Triage falló — fallback: todas como candidatas")
             return [
                 TriageResult(
                     index=i, is_candidate=True, reason="triage_fallback",
@@ -273,7 +286,9 @@ IMPORTANTE:
                     location_hint="no_especifica",
                     event_time_extracted="no_detectada",
                     estimated_minutes_ago=-1,
-                    impact_still_active=True
+                    impact_still_active=True,
+                    costco_affected="ninguno",
+                    operational_impact_type="ninguno"
                 )
                 for i in range(len(news_items))
             ]
@@ -290,86 +305,114 @@ IMPORTANTE:
                 event_time_extracted=item.get('event_time', 'no_detectada'),
                 estimated_minutes_ago=item.get('minutes_ago', -1),
                 impact_still_active=item.get('impact_active', False),
+                costco_affected=item.get('costco_affected', 'ninguno'),
+                operational_impact_type=item.get('operational_impact', 'ninguno'),
             ))
         
         candidates = sum(1 for r in triage_results if r.is_candidate)
-        relevant_but_old = sum(
+        relevant_expired = sum(
             1 for r in triage_results 
-            if not r.is_candidate 
-            and r.estimated_category != 'no_relevante'
-            and 'impacto' in r.reason.lower()
+            if not r.is_candidate and r.estimated_category != 'no_relevante'
         )
         
-        print(f"  🤖 Triage: {candidates}/{len(news_items)} con impacto activo")
-        if relevant_but_old > 0:
-            print(f"     ({relevant_but_old} eventos relevantes descartados por impacto ya no activo)")
+        print(f"  🤖 Triage: {candidates}/{len(news_items)} amenazas activas para Costco")
+        if relevant_expired > 0:
+            print(f"     ({relevant_expired} eventos descartados: impacto expirado, otra ciudad, o seguimiento)")
         
         return triage_results
 
     # ========================================================
-    # PASO 2: Análisis profundo (individual)
+    # ANÁLISIS PROFUNDO: Reporte de inteligencia para Costco
     # ========================================================
     
     def deep_analyze(self, title: str, content: str) -> Optional[Dict]:
         """
-        Análisis profundo con evaluación temporal de impacto.
+        Genera un reporte de inteligencia operacional para Costco.
+        
+        No es solo "¿qué pasó?" sino "¿qué significa para Costco 
+        y qué debemos hacer?"
         """
         current_time = self._get_current_time_str()
         
-        system_prompt = """Eres un analista de emergencias en tiempo real para Monterrey, NL.
-Tu análisis se usa para ALERTAS ACTIVAS — solo importan eventos cuyo impacto sigue presente.
+        system_prompt = f"""Eres el analista de inteligencia operacional de Costco Monterrey.
+Generas reportes de situación para que los gerentes de tienda tomen decisiones.
+
+{COSTCO_CONTEXT}
+
+Tu reporte debe responder: ¿Qué pasó? ¿Dónde? ¿Sigue activo? ¿Qué Costco se afecta? ¿Qué hacer?
+
 Respondes en JSON."""
 
         user_prompt = f"""HORA ACTUAL: {current_time}
 
-Analiza esta noticia:
+Genera reporte de inteligencia para este evento:
 
 TÍTULO: {title}
-CONTENIDO: {content[:2500]}
+CONTENIDO: {content[:3000]}
 
-Responde con este JSON:
+JSON requerido:
 {{
   "is_relevant": true/false,
   "category": "accidente_vial|incendio|seguridad|bloqueo|desastre_natural|no_relevante",
   "severity": 1-10,
+  
   "location": {{
-    "extracted": "ubicación exacta (calle, cruce, colonia)",
-    "normalized": "para geocodificación (ej: 'Av Lázaro Cárdenas y Fundadores, San Pedro Garza García, NL')",
+    "extracted": "ubicación exacta del evento",
+    "normalized": "dirección completa para geocodificar",
     "municipality": "municipio",
     "confidence": 0.0-1.0,
-    "is_specific": true/false
+    "is_specific": true/false,
+    "nearby_landmarks": "referencia conocida cercana"
   }},
-  "event_time": {{
-    "extracted": "hora del evento como aparece en la noticia",
-    "estimated_time": "HH:MM formato 24h",
-    "minutes_since_event": minutos desde el evento hasta ahora,
+  
+  "temporal": {{
+    "event_time": "hora del evento (HH:MM o descripción)",
+    "minutes_since_event": número,
     "impact_still_active": true/false,
-    "impact_reasoning": "por qué sí/no sigue activo (1 línea)"
+    "estimated_duration_remaining": "tiempo estimado que seguirá el impacto",
+    "reasoning": "por qué sí/no sigue activo"
   }},
-  "summary": "resumen en max 100 caracteres",
+  
+  "costco_impact": {{
+    "affected_store": "carretera_nacional|cumbres|valle_oriente|multiples|ninguno",
+    "impact_type": "acceso_clientes|seguridad_personas|evacuacion|cadena_suministro|ninguno",
+    "impact_level": "critico|alto|medio|bajo|ninguno",
+    "affected_roads": ["vialidades afectadas que usan clientes/proveedores de Costco"],
+    "customer_access_blocked": true/false,
+    "employee_safety_risk": true/false,
+    "supply_chain_affected": true/false
+  }},
+  
+  "recommended_actions": [
+    "acción específica que Costco debería tomar"
+  ],
+  
+  "summary": "resumen ejecutivo en max 120 caracteres",
+  
   "details": {{
     "victims": 0,
     "traffic_impact": "none|low|medium|high",
     "emergency_services": true/false,
     "time_reference": "current|recent|past|future",
-    "affected_roads": ["vialidades afectadas"]
+    "affected_roads": ["lista completa de vialidades mencionadas"]
   }},
-  "exclusion_reason": null o "razón si no es relevante o impacto ya no activo"
+  
+  "exclusion_reason": null o "razón de exclusión"
 }}
 
 REGLAS:
-- is_relevant = true SOLO si evento de alto impacto Y el impacto SIGUE ACTIVO ahora
-- Accidentes: impacto activo ~2h (graves ~3h) | Incendios: ~3h | Seguridad: ~4h | Bloqueos: ~6h
-- Notas de seguimiento → is_relevant: false
-- severity 1-3: menor | 4-6: moderado | 7-8: grave | 9-10: crítico"""
+- is_relevant = true SOLO si hay impacto operacional ACTIVO para Costco
+- recommended_actions: sé específico (ej: "Alertar personal de Costco Valle Oriente", 
+  "Recomendar ruta alterna por Vasconcelos", "Monitorear evolución del incendio")
+- Si el evento es grave pero lejos de cualquier Costco (>3km) → is_relevant: false
+- Si el impacto ya expiró → is_relevant: false
+- severity: desde perspectiva de impacto en Costco, no solo gravedad del evento"""
 
-        result_text = self._call_ai(system_prompt, user_prompt, max_tokens=1000, temperature=0.1)
-        result = self._parse_json(result_text)
-        
-        return result
+        result_text = self._call_ai(system_prompt, user_prompt, max_tokens=1200, temperature=0.15)
+        return self._parse_json(result_text)
 
     # ========================================================
-    # Métodos de compatibilidad
+    # Compatibilidad con sistema existente
     # ========================================================
     
     def analyze_news(self, title: str, content: str) -> Optional[Dict]:
@@ -378,21 +421,17 @@ REGLAS:
     def extract_location_ai(self, text: str) -> Optional[Dict]:
         system_prompt = "Eres un experto en geografía de Monterrey, NL. Respondes en JSON."
         user_prompt = f"""Extrae la ubicación de esta noticia:
-
 {text[:1000]}
-
 JSON: {{"location": "ubicación exacta", "normalized": "para geocodificar", "confidence": 0-1, "is_specific": true/false}}"""
-        
         result_text = self._call_ai(system_prompt, user_prompt, max_tokens=200)
         return self._parse_json(result_text)
     
     def classify_severity(self, title: str, content: str) -> int:
         system_prompt = "Eres un analista de emergencias. Respondes en JSON."
-        user_prompt = f"""Severidad del 1-10:
+        user_prompt = f"""Severidad del 1-10 para operaciones Costco:
 TÍTULO: {title}
 CONTENIDO: {content[:500]}
 JSON: {{"severity": número}}"""
-        
         result_text = self._call_ai(system_prompt, user_prompt, max_tokens=50)
         result = self._parse_json(result_text)
         return result.get("severity", 5) if result else 5
@@ -405,7 +444,7 @@ JSON: {{"severity": número}}"""
 
 
 # ============================================================
-# Factory function
+# Factory
 # ============================================================
 
 def create_analyzer(provider: str = None, model: str = None) -> AIAnalyzerV2:
@@ -418,9 +457,7 @@ def create_analyzer(provider: str = None, model: str = None) -> AIAnalyzerV2:
         elif os.environ.get('ANTHROPIC_API_KEY'):
             provider = 'anthropic'
         else:
-            raise ValueError(
-                "No se encontró API key. Configura OPENAI_API_KEY o ANTHROPIC_API_KEY"
-            )
+            raise ValueError("Configura OPENAI_API_KEY o ANTHROPIC_API_KEY")
     
     return AIAnalyzerV2(provider=provider, model=model or None)
 
@@ -429,11 +466,11 @@ def create_analyzer(provider: str = None, model: str = None) -> AIAnalyzerV2:
 # Test
 # ============================================================
 
-def test_triage():
+def test_agent():
     print("""
-╔════════════════════════════════════════╗
-║  Test: AI Analyzer v2.1 - Temporal    ║
-╚════════════════════════════════════════╝
+╔═══════════════════════════════════════════════╗
+║  Test: Agente Intel Costco v3.0              ║
+╚═══════════════════════════════════════════════╝
 """)
     
     analyzer = create_analyzer()
@@ -441,34 +478,49 @@ def test_triage():
     print(f"Hora actual: {now.strftime('%H:%M %Z')}\n")
     
     test_batch = [
-        {"titulo": "Choque múltiple en Av. Lázaro Cárdenas deja 3 heridos hace 20 minutos",
-         "contenido": "Un accidente vehicular en la avenida Lázaro Cárdenas..."},
+        {"titulo": "Choque múltiple en Lázaro Cárdenas cierra 2 carriles, hace 20 minutos",
+         "contenido": "Accidente en Av Lázaro Cárdenas altura de Fundadores deja 3 heridos, tráfico detenido"},
         {"titulo": "Muere ciclista que fue atropellado ayer en Morones Prieto",
-         "contenido": "Falleció en el hospital el ciclista que fue embestido..."},
-        {"titulo": "Incendio en bodega de Apodaca, bomberos en el lugar",
-         "contenido": "Se reporta incendio activo en bodega..."},
-        {"titulo": "Recuento: los 5 accidentes más graves del mes en Monterrey",
-         "contenido": "Durante marzo se registraron varios accidentes..."},
-        {"titulo": "Balacera esta madrugada en Escobedo deja un muerto",
-         "contenido": "Un enfrentamiento armado a las 3am en el municipio..."},
-        {"titulo": "Bloqueo activo en carretera a Laredo, manifestantes cierran paso",
-         "contenido": "Manifestantes mantienen bloqueada la carretera..."},
+         "contenido": "Falleció en hospital el ciclista embestido ayer por la tarde"},
+        {"titulo": "Incendio activo en bodega sobre Lincoln, bomberos en el lugar",
+         "contenido": "Se reporta fuego en bodega industrial, columna de humo visible desde Cumbres"},
+        {"titulo": "Bad Bunny anuncia concierto en Monterrey para julio",
+         "contenido": "El cantante confirmó fecha en el Estadio BBVA"},
+        {"titulo": "Balacera en Escobedo hace 30 minutos, zona acordonada",
+         "contenido": "Enfrentamiento en colonia Pedregal, presencia de Fuerza Civil"},
+        {"titulo": "Bloqueo en Carretera Nacional por manifestantes, tráfico detenido",
+         "contenido": "Manifestantes cierran paso a altura de La Estanzuela desde hace 1 hora"},
+        {"titulo": "Inundación en Constitución y Morones Prieto por lluvias intensas",
+         "contenido": "Nivel del agua sube, vehículos varados, Protección Civil en la zona"},
+        {"titulo": "PIB de Nuevo León creció 3.5% en el último trimestre",
+         "contenido": "La economía del estado muestra signos positivos"},
     ]
     
     results = analyzer.batch_triage(test_batch)
     
-    print(f"\nResultados:")
-    print(f"{'='*70}")
-    
+    print(f"\n{'='*70}")
     for r in results:
-        status = "✅ ALERTA ACTIVA" if r.is_candidate else "❌ Descartada"
-        print(f"  [{r.index}] {status}")
-        print(f"      {test_batch[r.index]['titulo'][:60]}...")
+        status = "🚨 AMENAZA ACTIVA" if r.is_candidate else "⬜ No relevante"
+        print(f"\n  [{r.index}] {status}")
+        print(f"      {test_batch[r.index]['titulo'][:65]}...")
         print(f"      Razón: {r.reason}")
-        print(f"      Hora evento: {r.event_time_extracted} | ~{r.estimated_minutes_ago} min ago")
-        print(f"      Impacto activo: {'SÍ' if r.impact_still_active else 'NO'}")
-        print()
+        if r.is_candidate:
+            print(f"      Costco afectado: {r.costco_affected}")
+            print(f"      Impacto: {r.operational_impact_type}")
+            print(f"      Hora evento: {r.event_time_extracted} | ~{r.estimated_minutes_ago} min")
+    
+    # Análisis profundo de primera candidata
+    candidates = [r for r in results if r.is_candidate]
+    if candidates:
+        first = candidates[0]
+        item = test_batch[first.index]
+        print(f"\n\n{'='*70}")
+        print(f"REPORTE DE INTELIGENCIA: {item['titulo'][:50]}...")
+        print(f"{'='*70}")
+        analysis = analyzer.deep_analyze(item['titulo'], item['contenido'])
+        if analysis:
+            print(json.dumps(analysis, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    test_triage()
+    test_agent()
