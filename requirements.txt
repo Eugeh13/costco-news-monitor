@@ -10,6 +10,7 @@ gnews>=0.3.7
 
 # === Nuevo: Scraping inteligente ===
 crawl4ai>=0.8.0
+newspaper3k>=0.2.8
 
 # === Existentes (notificaciones y geo) ===
 python-telegram-bot>=20.0

@@ -181,12 +181,26 @@ class NewsMonitorV2:
         # Preparar batch para triage
         batch = [item.to_dict() for item in news]
         
-        # Una sola llamada IA para todo el batch
-        triage_results = self.ai.batch_triage(batch)
+        # Dividir en chunks de máx 25 para evitar que el JSON se corte
+        CHUNK_SIZE = 25
+        all_triage_results = []
+        
+        for chunk_start in range(0, len(batch), CHUNK_SIZE):
+            chunk = batch[chunk_start:chunk_start + CHUNK_SIZE]
+            # Reindexar el chunk desde 0
+            for i, item in enumerate(chunk):
+                item['_chunk_index'] = i
+            
+            chunk_results = self.ai.batch_triage(chunk)
+            
+            # Restaurar el índice global
+            for result in chunk_results:
+                result.index = chunk_start + result.index
+                all_triage_results.append(result)
         
         # Emparejar resultados con noticias originales
         candidates = []
-        for triage in triage_results:
+        for triage in all_triage_results:
             if triage.is_candidate and triage.index < len(news):
                 candidates.append((news[triage.index], triage))
         
