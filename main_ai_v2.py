@@ -254,11 +254,25 @@ class NewsMonitorV2:
         location_text = location_info.get('extracted')
         is_specific = location_info.get('is_specific', False)
         
-        if not location_text or not is_specific:
-            print(f"     ⚠️ Ubicación no específica")
+        if not location_text:
+            # Sin ubicación en absoluto: intentar con vialidades clave en título + contenido
+            print(f"     ⚠️ Sin ubicación extraída — verificando vialidades clave...")
+            full_text = titulo + " " + content
+            is_within, nearest_costco = self._check_key_roads(full_text, (0, 0), None)
+            if is_within:
+                print(f"     ✓ Vialidad clave encontrada")
+                self._send_alert(news_item, analysis, nearest_costco, nearest_costco.get('coords', (0, 0)))
+                self._save_to_db(news_item, analysis, nearest_costco, nearest_costco.get('coords', (0, 0)))
+                if url:
+                    self.storage.mark_as_processed(url)
+                return True
+            print(f"     ❌ Sin ubicación y sin vialidades clave")
             return False
         
-        print(f"     📍 Ubicación: {location_text}")
+        if not is_specific:
+            print(f"     ⚠️ Ubicación no específica: '{location_text}' — intentando geocodificar de todas formas")
+        else:
+            print(f"     📍 Ubicación: {location_text}")
         
         # ── Geocodificar ──
         normalized = location_info.get('normalized', location_text)
@@ -268,7 +282,18 @@ class NewsMonitorV2:
             coords = self.geolocator.geocode_location(location_text + ", Monterrey, NL")
         
         if not coords:
-            print(f"     ⚠️ No se pudo geocodificar")
+            # Último recurso: buscar vialidades clave en título + contenido
+            print(f"     ⚠️ No se pudo geocodificar — verificando vialidades clave...")
+            full_text = titulo + " " + content
+            is_within, nearest_costco = self._check_key_roads(full_text, (0, 0), None)
+            if is_within:
+                print(f"     ✓ Vialidad clave encontrada")
+                self._send_alert(news_item, analysis, nearest_costco, nearest_costco.get('coords', (0, 0)))
+                self._save_to_db(news_item, analysis, nearest_costco, nearest_costco.get('coords', (0, 0)))
+                if url:
+                    self.storage.mark_as_processed(url)
+                return True
+            print(f"     ⚠️ No se pudo geocodificar ni encontrar vialidades clave")
             return False
         
         print(f"     🗺️ Coords: {coords[0]:.6f}, {coords[1]:.6f}")
@@ -278,10 +303,11 @@ class NewsMonitorV2:
             coords, self.costco_locations, self.radius_km
         )
         
-        # Verificar vialidades clave
+        # Verificar vialidades clave (buscar en título + contenido)
         if not is_within:
+            full_text = titulo + " " + content
             is_within, nearest_costco = self._check_key_roads(
-                content, coords, nearest_costco
+                full_text, coords, nearest_costco
             )
         
         if not is_within:
@@ -303,6 +329,7 @@ class NewsMonitorV2:
     
     def _check_key_roads(self, content: str, coords, nearest_costco) -> tuple:
         """Verifica si la noticia menciona vialidades clave de algún Costco."""
+        # Buscar en todo el texto disponible (título + contenido)
         content_lower = content.lower()
         
         for costco_name, costco_data in self.costco_locations.items():
@@ -311,11 +338,16 @@ class NewsMonitorV2:
                 if vialidad in content_lower:
                     print(f"     ✓ Vialidad clave: '{vialidad}' ({costco_name})")
                     costco_coords = (costco_data['lat'], costco_data['lon'])
-                    distancia = self.geolocator.calculate_distance(coords, costco_coords)
+                    # Si coords es (0,0) (sin geocodificar), usar coords del Costco directamente
+                    if coords and coords != (0, 0):
+                        distancia = self.geolocator.calculate_distance(coords, costco_coords)
+                    else:
+                        distancia = 0.5  # Asumir muy cerca si se mencionó la vialidad
                     return True, {
                         'nombre': costco_name,
                         'direccion': costco_data['direccion'],
-                        'distancia_km': round(distancia, 2)
+                        'distancia_km': round(distancia, 2),
+                        'coords': costco_coords
                     }
         
         return False, nearest_costco

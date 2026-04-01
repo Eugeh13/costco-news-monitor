@@ -293,16 +293,29 @@ class GNewsSource:
             return []
     
     def get_full_article(self, url: str) -> Optional[str]:
-        """Obtiene el artículo completo usando GNews."""
-        if not self.client:
+        """Obtiene el artículo completo usando newspaper3k directamente."""
+        if not url:
             return None
         
+        # Intentar con newspaper3k directamente (más confiable que gnews.get_full_article)
         try:
-            article = self.client.get_full_article(url)
-            if article:
-                return article.text
+            import newspaper
+            article = newspaper.Article(url, language='es')
+            article.download()
+            article.parse()
+            if article.text and len(article.text) > 100:
+                return article.text[:3000]
         except Exception as e:
-            print(f"  ⚠️ Error obteniendo artículo completo: {e}")
+            print(f"  ⚠️ Error newspaper3k: {e}")
+        
+        # Fallback: intentar con gnews
+        if self.client:
+            try:
+                article = self.client.get_full_article(url)
+                if article:
+                    return article.text
+            except Exception as e:
+                print(f"  ⚠️ Error gnews.get_full_article: {e}")
         
         return None
     

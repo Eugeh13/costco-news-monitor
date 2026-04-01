@@ -40,8 +40,8 @@ COSTCO_LOCATIONS = {
     }
 }
 
-# Radio de búsqueda en kilómetros (reducido para mayor precisión)
-RADIUS_KM = 3.0
+# Radio de búsqueda en kilómetros
+RADIUS_KM = 5.0
 
 # Palabras clave para cada categoría de noticia de alto impacto
 KEYWORDS = {
