@@ -93,7 +93,10 @@ class TwitterSource(NewsSource):
             print("  ⚠️ twscrape no instalado — ejecuta: pip install twscrape")
             return []
 
-        api = twscrape.API()
+        proxy = os.getenv("TWITTER_PROXY")
+        api = twscrape.API(proxy=proxy)
+        if proxy:
+            print(f"  🌐 Twitter: usando proxy")
 
         # Registrar cuenta con cookies (twscrape usa cookies; password es placeholder)
         cookies_str = f"auth_token={auth_token}; ct0={ct0}"
