@@ -13,6 +13,7 @@ from app.infrastructure.sources.deep_reader import MultiStrategyReader
 from app.infrastructure.sources.gnews_source import GNewsSource
 from app.infrastructure.sources.google_rss import GoogleRSSSource
 from app.infrastructure.sources.rss_direct import RSSDirectSource
+from app.infrastructure.sources.twitter_source import TwitterSource
 from app.services.content_hasher import ContentHasher
 from app.services.deep_analysis import DeepAnalysisService
 from app.services.geo_service import GeoService, NominatimGeocoder
@@ -45,6 +46,12 @@ def build_pipeline() -> MonitoringPipeline:
         GNewsSource(),
         RSSDirectSource(),
     ]
+
+    if settings.twitter_enabled:
+        sources.append(TwitterSource())
+        print("🐦 Twitter/X: ✓")
+    else:
+        print("🐦 Twitter/X: ✗ (configura TWITTER_AUTH_TOKEN y TWITTER_CT0)")
 
     # ── Notifier ──
     if settings.telegram_enabled:

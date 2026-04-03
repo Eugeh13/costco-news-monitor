@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
 
+    # ── Twitter/X (cookie-based, no API key needed) ──
+    twitter_auth_token: Optional[str] = None
+    twitter_ct0: Optional[str] = None
+
     # ── Database ──
     database_url: Optional[str] = None
 
@@ -46,6 +50,10 @@ class Settings(BaseSettings):
     @property
     def telegram_enabled(self) -> bool:
         return bool(self.telegram_bot_token and self.telegram_chat_id)
+
+    @property
+    def twitter_enabled(self) -> bool:
+        return bool(self.twitter_auth_token and self.twitter_ct0)
 
     @property
     def database_enabled(self) -> bool:
