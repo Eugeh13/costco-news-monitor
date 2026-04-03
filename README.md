@@ -1,134 +1,198 @@
-# 🚨 Sistema de Monitoreo de Noticias - Costco Monterrey
+# Sistema de Monitoreo de Noticias — Costco Monterrey
 
 Sistema automatizado de monitoreo de noticias de alto impacto (accidentes, incendios, balaceras, bloqueos) cerca de sucursales Costco en Monterrey, NL.
 
-**Versión**: 2.1 con Inteligencia Artificial  
-**Powered by**: OpenAI GPT-4o-mini
+**Versión**: 2.1 — Multi-source + Triage IA
+**IA**: OpenAI GPT-4o-mini o Anthropic Claude (configurable)
 
 ---
 
-## 🎯 Características
+## Características
 
-- ✅ **Análisis con IA**: Comprensión semántica de noticias usando OpenAI
-- ✅ **Clasificación de Severidad**: Escala 1-10 (MENOR/MODERADA/GRAVE/CRÍTICA)
-- ✅ **Filtro Temporal**: Solo noticias de última hora (máximo 1 hora de antigüedad)
-- ✅ **Geocodificación**: Ubicación precisa de eventos
-- ✅ **Radio de Monitoreo**: 3 km alrededor de cada Costco
-- ✅ **Notificaciones Telegram**: Alertas en tiempo real
-- ✅ **Ejecución Automática**: Cada 30 minutos, 24/7
-
----
-
-## 📍 Ubicaciones Monitoreadas
-
-### 1. Costco Carretera Nacional
-- **Dirección**: Carretera Nacional Km. 268, Monterrey, NL
-- **Radio**: 3 km
-
-### 2. Costco Cumbres
-- **Dirección**: Alejandro de Rodas 6767, Monterrey, NL
-- **Radio**: 3 km
-
-### 3. Costco Valle Oriente
-- **Dirección**: Av. Lázaro Cárdenas 800, San Pedro Garza García, NL
-- **Radio**: 3 km
+- **Scraping multi-fuente**: Google News RSS + GNews + RSS directo (Milenio, Info7) + Crawl4AI
+- **Triage IA en batch**: 1 llamada clasifica ~50 noticias → ~70% menos costo vs v1
+- **Análisis profundo**: Solo candidatas reciben análisis completo (artículo completo + IA)
+- **Agente operacional**: La IA razona como gerente de operaciones, no como clasificador
+- **Filtro temporal**: Solo noticias de la última hora
+- **Radio de monitoreo**: 5 km alrededor de cada Costco + detección por vialidades clave
+- **Detección de duplicados**: Hash SHA-256 + PostgreSQL (ventana 24h)
+- **Alertas Telegram**: En tiempo real con severidad 1-10 e impacto operacional
+- **Ejecución automática**: Cada 30 minutos en horarios fijos (:00 y :30), zona CST
 
 ---
 
-## 🎯 Eventos Monitoreados
+## Ubicaciones Monitoreadas
 
-- 🚗 **Accidentes Viales**: Choques, volcaduras, atropellos
-- 🔥 **Incendios**: Edificios, locales, vehículos
-- 🚨 **Seguridad**: Balaceras, enfrentamientos
-- 🚧 **Bloqueos**: Manifestaciones, cierres viales
-- 🌊 **Desastres Naturales**: Inundaciones, trombas
+| Sucursal | Coordenadas | Radio |
+|----------|-------------|-------|
+| Costco Carretera Nacional | 25.5781, -100.2512 | 5 km |
+| Costco Cumbres | 25.7296, -100.3928 | 5 km |
+| Costco Valle Oriente | 25.6397, -100.3176 | 5 km |
 
 ---
 
-## 🚀 Despliegue en Railway
+## Eventos Monitoreados
 
-### Paso 1: Conectar GitHub
+- **Accidentes viales**: Choques, volcaduras, atropellos
+- **Incendios**: Edificios, locales, vehículos
+- **Seguridad**: Balaceras, enfrentamientos
+- **Bloqueos**: Manifestaciones, cierres viales
+- **Desastres naturales**: Inundaciones, trombas
 
-1. Ve a [Railway.app](https://railway.app/)
-2. Haz clic en "Start a New Project"
-3. Selecciona "Deploy from GitHub repo"
-4. Conecta tu cuenta de GitHub
-5. Selecciona este repositorio
+---
 
-### Paso 2: Configurar Variables de Entorno
-
-En Railway, ve a "Variables" y agrega:
+## Arquitectura del Pipeline
 
 ```
-TELEGRAM_BOT_TOKEN=tu_token_aqui
-TELEGRAM_CHAT_ID=tu_chat_id_aqui
-OPENAI_API_KEY=tu_openai_api_key_aqui
+FUENTES
+  Google News RSS  ──┐
+  GNews API        ──┼──► scraper_v3.py ──► NewsItem[]
+  RSS directo      ──┤
+  Crawl4AI         ──┘
+        │
+        ▼
+FILTROS
+  ⏰ Tiempo (última hora) ── time_filter.py
+  🔄 Duplicados (DB + local) ── database.py / storage.py
+        │
+        ▼
+TRIAGE IA (batch)
+  ai_analyzer_v2.py  ──► 1 llamada para ~50 noticias
+  Candidatas: ~5-10% del total
+        │
+        ▼
+ANÁLISIS PROFUNDO (solo candidatas)
+  Crawl4AI extrae artículo completo
+  IA analiza impacto operacional por tienda
+        │
+        ▼
+GEOCODIFICACIÓN
+  geolocation.py + Nominatim
+  Verificación radio 5 km + vialidades clave
+        │
+        ▼
+SALIDA
+  📱 Telegram (notifier_ai.py)
+  💾 PostgreSQL (database.py)
 ```
-
-### Paso 3: Desplegar
-
-Railway detectará automáticamente el `requirements.txt` y desplegará el proyecto.
-
-El sistema iniciará automáticamente con `run_scheduled_ai.py`.
 
 ---
 
-## 📦 Instalación Local
+## Estructura del Proyecto
+
+```
+├── main_ai_v2.py           # Script principal — orquesta el pipeline
+├── run_scheduled_v2.py     # Ejecutor programado (cada 30 min)
+├── scraper_v3.py           # Scraping multi-fuente
+├── ai_analyzer_v2.py       # Triage batch + análisis profundo (OpenAI/Anthropic)
+├── config.py               # Coordenadas Costco, keywords, radio
+├── time_filter.py          # Filtro temporal (última hora)
+├── geolocation.py          # Geocodificación y cálculo de distancias
+├── analyzer.py             # Pre-filtro por palabras clave
+├── notifier_ai.py          # Notificaciones a Telegram
+├── database.py             # Gestión PostgreSQL
+├── storage.py              # Cache local de URLs procesadas
+├── database_schema.sql     # Schema de la tabla noticias
+├── requirements.txt        # Dependencias Python
+├── Procfile                # Entrada Railway: run_scheduled_v2.py
+└── runtime.txt             # Python 3.11
+```
+
+---
+
+## Instalación y Configuración
 
 ### Requisitos
 
 - Python 3.11+
-- pip3
+- Clave de API OpenAI **o** Anthropic
+- Bot de Telegram
+- PostgreSQL (Railway o local)
 
-### Pasos
+### Variables de Entorno
 
-1. **Clonar repositorio**:
-```bash
-git clone https://github.com/tu-usuario/news-monitor-costco.git
-cd news-monitor-costco
+```env
+# IA — usar uno de los dos
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Telegram
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+
+# PostgreSQL
+DATABASE_URL=postgresql://user:password@host:5432/database
 ```
 
-2. **Instalar dependencias**:
+### Instalación local
+
 ```bash
-pip3 install -r requirements.txt
+git clone https://github.com/Eugeh13/costco-news-monitor.git
+cd costco-news-monitor
+pip install -r requirements.txt
+
+# Crear tabla en PostgreSQL
+psql $DATABASE_URL -f database_schema.sql
+
+# Ejecutar una vez (prueba)
+python3.11 main_ai_v2.py
+
+# Ejecutar programado (cada 30 minutos)
+python3.11 run_scheduled_v2.py
 ```
 
-3. **Configurar variables de entorno**:
-```bash
-export TELEGRAM_BOT_TOKEN="tu_token"
-export TELEGRAM_CHAT_ID="tu_chat_id"
-export OPENAI_API_KEY="tu_openai_key"
-```
+### Despliegue en Railway
 
-4. **Ejecutar**:
-
-**Una vez** (prueba):
-```bash
-python3.11 main_ai.py
-```
-
-**Automático** (cada 30 minutos):
-```bash
-python3.11 run_scheduled_ai.py
-```
+1. Conectar repositorio GitHub en Railway
+2. Configurar las variables de entorno
+3. Railway detecta el `Procfile` y ejecuta `run_scheduled_v2.py` automáticamente
 
 ---
 
-## 📊 Costos Estimados
+## Despliegue en Railway
 
-### OpenAI API
-- **Por día**: $0.15 - $0.45 USD
-- **Por mes**: $5 - $15 USD
+### Paso 1: Crear proyecto
 
-### Railway Hosting
-- **Gratis**: Hasta 500 horas/mes
-- **Hobby Plan**: $5 USD/mes (ilimitado)
+1. Ve a [Railway.app](https://railway.app/)
+2. "Start a New Project" → "Deploy from GitHub repo"
+3. Selecciona este repositorio
 
-**Total estimado**: $10-20 USD/mes
+### Paso 2: Agregar PostgreSQL
+
+1. En el proyecto, click en "+ New" → "Database" → "PostgreSQL"
+2. Copia el valor de `DATABASE_URL` de las variables generadas
+
+### Paso 3: Configurar Variables
+
+En la pestaña "Variables" del servicio web, agrega:
+
+```
+OPENAI_API_KEY=...
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+DATABASE_URL=...   (copiado del paso 2)
+```
+
+### Paso 4: Crear tabla
+
+Ejecuta `database_schema.sql` en la consola de PostgreSQL de Railway.
 
 ---
 
-## 📱 Ejemplo de Notificación
+## Costos Estimados
+
+### IA (OpenAI gpt-4o-mini)
+- **Por día**: ~$0.05–0.15 USD (triage batch reduce ~70% vs v1)
+- **Por mes**: ~$1.50–5 USD
+
+### Railway
+- **Hobby Plan**: $5 USD/mes (incluye PostgreSQL)
+
+**Total estimado**: $6–10 USD/mes
+
+---
+
+## Ejemplo de Alerta Telegram
 
 ```
 🚨 ALERTA COSTCO MTY
@@ -145,142 +209,82 @@ python3.11 run_scheduled_ai.py
 🗺️ Av. Lázaro Cárdenas altura Fundadores
 
 📝 Accidente vehicular con tres personas lesionadas.
+   Impacto operacional: clientes de Valle Oriente
+   con dificultad de acceso por Lázaro Cárdenas.
 
 📡 Milenio Monterrey
 🔗 [Ver noticia completa]
 
-⏰ 28/10/2025 18:00
+⏰ 03/04/2026 18:00 CST
 ```
 
 ---
 
-## 🔧 Configuración
+## Configuración Avanzada
 
-### Cambiar Intervalo de Monitoreo
+### Cambiar proveedor de IA
 
-Edita `run_scheduled_ai.py`:
+La función `create_analyzer()` en `ai_analyzer_v2.py` detecta automáticamente qué clave está disponible. Para forzar uno:
+
 ```python
-# Cambiar intervalo (default: 30 minutos)
-# Modificar función get_next_scheduled_time()
+# En main_ai_v2.py
+from ai_analyzer_v2 import AIAnalyzerV2
+self.ai = AIAnalyzerV2(provider="anthropic")  # o "openai"
 ```
 
-### Cambiar Ventana de Tiempo
+### Cambiar ventana de tiempo
 
-Edita `main_ai.py`, línea 35:
+En `main_ai_v2.py`, línea del `TimeFilter`:
 ```python
-# Ventana de 1 hora (default)
-self.time_filter = TimeFilter(max_age_hours=1)
-
-# Ventana de 30 minutos
-self.time_filter = TimeFilter(max_age_hours=0.5)
+self.time_filter = TimeFilter(max_age_hours=1)   # default: 1 hora
+self.time_filter = TimeFilter(max_age_hours=0.5) # 30 minutos
 ```
 
-### Desactivar IA
+### Cambiar radio de monitoreo
 
-Edita `main_ai.py`, línea 30:
+En `config.py`:
 ```python
-monitor = NewsMonitorAI(use_ai=False)
+RADIUS_KM = 5.0  # kilómetros alrededor de cada Costco
 ```
 
 ---
 
-## 📚 Documentación
+## Documentación Adicional
 
-- **GUIA_MEJORAS_IA.md**: Documentación completa de mejoras con IA
-- **FILTRO_TIEMPO_IMPLEMENTADO.md**: Explicación del filtro temporal
-- **EXPLICACION_CRITERIOS_BUSQUEDA.md**: Criterios de búsqueda detallados
-- **INICIO_RAPIDO_IA.md**: Guía de inicio rápido
-- **ACTIVACION_AUTOMATICA.md**: Guía de activación automática
-
----
-
-## 🛠️ Estructura del Proyecto
-
-```
-news_monitor_app/
-├── main_ai.py              # Script principal con IA
-├── run_scheduled_ai.py     # Ejecución programada
-├── ai_analyzer.py          # Módulo de análisis con IA
-├── time_filter.py          # Filtro temporal de noticias
-├── scraper.py              # Scraping de noticias
-├── analyzer.py             # Análisis tradicional
-├── geolocation.py          # Geocodificación
-├── notifier_ai.py          # Notificaciones mejoradas
-├── storage.py              # Almacenamiento de noticias procesadas
-├── config.py               # Configuración
-├── requirements.txt        # Dependencias
-└── README.md               # Este archivo
-```
+| Archivo | Contenido |
+|---------|-----------|
+| `GUIA_CONFIGURACION_POSTGRESQL_RAILWAY.md` | Setup detallado de la base de datos |
+| `FILTRO_TIEMPO_IMPLEMENTADO.md` | Explicación del filtro temporal |
+| `EXPLICACION_CRITERIOS_BUSQUEDA.md` | Criterios de búsqueda y palabras clave |
+| `GUIA_MEJORAS_IA.md` | Historial de mejoras del módulo IA |
+| `README_COMPLETO.md` | Documentación técnica completa v2.0 |
 
 ---
 
-## 🧪 Pruebas
+## Pruebas
 
-### Probar Módulo de IA
 ```bash
-python3.11 ai_analyzer.py
-```
+# Probar pipeline completo (una ejecución)
+python3.11 main_ai_v2.py
 
-### Probar Filtro de Tiempo
-```bash
+# Probar scraper
+python3.11 scraper_v3.py
+
+# Probar filtro de tiempo
 python3.11 time_filter.py
-```
 
-### Probar Notificador
-```bash
+# Probar notificador
 python3.11 notifier_ai.py test
 ```
 
-### Probar Sistema Completo
-```bash
-python3.11 main_ai.py
-```
+---
+
+## Seguridad
+
+- Credenciales exclusivamente en variables de entorno
+- No hay API keys en el código fuente
+- `.gitignore` configurado para archivos sensibles
 
 ---
 
-## 📊 Estadísticas
-
-### Por Día
-- **Monitoreos**: 48
-- **Noticias analizadas**: ~1,440
-- **Análisis con IA**: ~100-150
-- **Alertas enviadas**: 0-5 (depende de eventos)
-
-### Por Mes
-- **Monitoreos**: ~1,440
-- **Noticias analizadas**: ~43,200
-- **Análisis con IA**: ~3,000-4,500
-
----
-
-## 🔒 Seguridad
-
-- ✅ Credenciales en variables de entorno
-- ✅ No hay API keys en el código
-- ✅ `.gitignore` configurado
-- ✅ Logs locales sin datos sensibles
-
----
-
-## 🤝 Contribuir
-
-Este es un proyecto privado para Costco Monterrey.
-
----
-
-## 📞 Soporte
-
-Para preguntas o soporte, contacta al administrador del sistema.
-
----
-
-## 📄 Licencia
-
-Uso privado - Costco Monterrey
-
----
-
-**Desarrollado con ❤️ para Costco Monterrey**  
-**Powered by OpenAI GPT-4o-mini**
-
-# Redeploy trigger
+**Uso privado — Costco Monterrey**

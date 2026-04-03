@@ -143,8 +143,8 @@ Crea un archivo `.env` o configura en Railway:
 OPENAI_API_KEY=sk-...
 
 # Telegram (requerido para notificaciones)
-TELEGRAM_BOT_TOKEN=7838511834:AAHWPOubGoq8Jo6KVWWr_AhTFJulB0oDlC0
-TELEGRAM_CHAT_ID=7510716093
+TELEGRAM_BOT_TOKEN=tu_bot_token_aqui
+TELEGRAM_CHAT_ID=tu_chat_id_aqui
 
 # Twitter (opcional, para monitoreo de Twitter/X)
 TWITTER_AUTH_TOKEN=...
