@@ -105,7 +105,8 @@ class TwitterSource(NewsSource):
                 email_password="placeholder_not_used",
                 cookies=cookies_str,
             )
-            await api.pool.login_all()
+            # No llamar login_all() — con cookie auth la cuenta ya está autenticada.
+            # login_all() es para user/password y causa IndexError con cookie auth.
         except Exception as e:
             print(f"  ⚠️ Twitter: error al configurar cookies — {e}")
             return []
