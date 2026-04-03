@@ -1,1 +1,1 @@
-worker: python3.11 run_scheduled_v2.py
+web: python server.py
