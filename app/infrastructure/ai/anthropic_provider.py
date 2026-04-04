@@ -35,7 +35,7 @@ except ImportError:
 class AnthropicProvider(AIProvider):
     """Anthropic-based AI provider for triage and deep analysis."""
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514", api_key: Optional[str] = None) -> None:
+    def __init__(self, model: str = "claude-haiku-4-5-20251001", api_key: Optional[str] = None) -> None:
         if not ANTHROPIC_AVAILABLE:
             raise ImportError("pip install anthropic")
         self._client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
