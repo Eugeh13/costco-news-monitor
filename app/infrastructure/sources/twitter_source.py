@@ -89,9 +89,29 @@ class TwitterSource(NewsSource):
     async def _collect_async(self, auth_token: str, ct0: str) -> list[NewsItem]:
         try:
             import twscrape
+            from twscrape.xclid import XClIdGen
+            from twscrape import queue_client
         except ImportError:
             print("  ⚠️ twscrape no instalado — ejecuta: pip install twscrape")
             return []
+
+        # twscrape >=0.15 genera x-client-transaction-id parseando el JS de Twitter.
+        # Twitter cambió su JS y el patrón ya no existe → IndexError en xclid.py.
+        # El header no se valida estrictamente, así que usamos un generador dummy.
+        class _DummyXClIdGen(XClIdGen):
+            def __init__(self):
+                super().__init__(vk_bytes=[0] * 32, anim_key="")
+
+        _orig_get = queue_client.XClIdGenStore.get.__func__
+
+        @classmethod  # type: ignore[misc]
+        async def _patched_get(cls, username, fresh=False):
+            try:
+                return await _orig_get(cls, username, fresh)
+            except Exception:
+                return _DummyXClIdGen()
+
+        queue_client.XClIdGenStore.get = _patched_get
 
         proxy = os.getenv("TWITTER_PROXY")
         api = twscrape.API(proxy=proxy)
