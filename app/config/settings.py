@@ -64,7 +64,7 @@ class Settings(BaseSettings):
         if self.ai_model:
             return self.ai_model
         if self.ai_provider == "anthropic":
-            return "claude-sonnet-4-20250514"
+            return "claude-haiku-4-5-20251001"
         return "gpt-5-mini"
 
 
