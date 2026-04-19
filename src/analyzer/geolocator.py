@@ -11,23 +11,23 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import math
 import time
 from typing import Optional
 
 import anthropic
 import httpx
+import structlog
 
 from src.analyzer.types import GeoLocation
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ── Costco store coordinates (from project README / CLAUDE.md) ───────────────
 COSTCO_LOCATIONS: dict[str, tuple[float, float]] = {
-    "Costco Carretera Nacional": (25.5780, -100.2510),
-    "Costco Cumbres":            (25.7296, -100.3928),
-    "Costco Valle Oriente":      (25.6455, -100.3255),
+    "Costco Carretera Nacional": (25.6026, -100.2640),
+    "Costco Cumbres":            (25.7353, -100.4022),
+    "Costco Valle Oriente":      (25.6457, -100.3072),
 }
 
 _NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search"

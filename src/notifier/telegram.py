@@ -12,14 +12,14 @@ Retry policy:
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 from typing import Optional
 
 import httpx
 
 from src.analyzer.types import GeoLocation, IncidentClassification, IncidentType
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 

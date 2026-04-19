@@ -9,7 +9,7 @@ Tool-use forces structured output; tenacity retries on 5xx only.
 
 from __future__ import annotations
 
-import logging
+import structlog
 from typing import Optional
 
 import anthropic
@@ -17,7 +17,7 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 
 from src.analyzer.types import IncidentClassification, IncidentInput, IncidentType
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _TRIAGE_MODEL = "claude-haiku-4-5-20251001"
 _ANALYZE_MODEL = "claude-sonnet-4-6"
