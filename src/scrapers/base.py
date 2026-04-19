@@ -11,7 +11,7 @@ from typing import Optional
 
 import httpx
 import structlog
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 _USER_AGENT = (
@@ -34,6 +34,13 @@ class RawArticle(BaseModel):
     published_at: datetime  # must be timezone-aware
     content_snippet: str = ""
     raw_html: Optional[str] = None
+
+    @field_validator("published_at")
+    @classmethod
+    def must_be_timezone_aware(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            raise ValueError("published_at must be timezone-aware")
+        return v
 
 
 def build_client(timeout: float = 30.0) -> httpx.AsyncClient:
