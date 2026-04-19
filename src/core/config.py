@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     log_level: LogLevel = LogLevel.INFO
     environment: Environment = Environment.dev
 
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def coerce_log_level_upper(cls, v: str) -> str:
+        return str(v).upper()
+
     @field_validator("database_url", mode="before")
     @classmethod
     def coerce_async_scheme(cls, v: str) -> str:
