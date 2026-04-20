@@ -1,18 +1,29 @@
 """
-Semantic deduplication for incident titles.
+Deduplication for incident articles — two layers:
 
-Strategy:
-  1. Normalise: lowercase, strip non-alpha, remove stop-words, basic stem.
-  2. Sort stems so word-order differences collapse to the same hash.
-  3. SHA-256 of "<normalised_title>|<url>".
-  4. TTL-cached in memory for 24 h using cachetools.TTLCache.
+  1. Fast hash dedup (in-memory, TTL 24 h): catches duplicates within a single
+     pipeline run using semantic title normalisation + URL.
+  2. DB dedup (async, cross-run): checks decision_log for the same canonical URL
+     or normalised title in the last 24 hours, catching duplicates across runs.
+
+Both layers run BEFORE any LLM call so we never pay to classify a duplicate.
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
+from datetime import UTC, datetime, timedelta
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
 from cachetools import TTLCache
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+_TRACKING_PARAMS: frozenset[str] = frozenset({
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "utm_id", "fbclid", "gclid", "msclkid", "ref", "_ga",
+})
 
 _STOPWORDS: frozenset[str] = frozenset({
     # Spanish
@@ -79,3 +90,52 @@ def is_duplicate(title: str, url: str = "") -> bool:
 def reset_cache() -> None:
     """Clear the dedup cache (test helper)."""
     _cache.clear()
+
+
+def _canonicalize_url(url: str) -> str:
+    """Strip common tracking query params from a URL."""
+    if not url:
+        return url
+    parsed = urlparse(url)
+    qs = {
+        k: v
+        for k, v in parse_qs(parsed.query, keep_blank_values=True).items()
+        if k not in _TRACKING_PARAMS
+    }
+    return urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
+
+
+async def is_duplicate_db(title: str, url: str, session: AsyncSession) -> bool:
+    """Return True if the same canonical URL or normalised title exists in decision_log
+    within the last 24 hours.  Falls back gracefully when the table does not exist.
+    """
+    since = datetime.now(UTC) - timedelta(hours=24)
+    canonical = _canonicalize_url(url)
+    norm_title = _normalize(title)
+
+    try:
+        # Fast path: exact canonical-URL match
+        if canonical:
+            result = await session.execute(
+                text(
+                    "SELECT COUNT(*) FROM decision_log "
+                    "WHERE article_url = :url AND created_at >= :since"
+                ),
+                {"url": canonical, "since": since.isoformat()},
+            )
+            if result.scalar_one() > 0:
+                return True
+
+        # Slower path: normalised-title match (Python-side comparison)
+        rows = await session.execute(
+            text("SELECT article_title FROM decision_log WHERE created_at >= :since"),
+            {"since": since.isoformat()},
+        )
+        for row in rows:
+            if _normalize(row.article_title) == norm_title:
+                return True
+
+    except Exception:
+        pass
+
+    return False

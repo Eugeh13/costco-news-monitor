@@ -155,3 +155,35 @@ async def test_deep_analyze_uses_sonnet_model():
     await clf.deep_analyze(_INCIDENT)
     call_kwargs = mock_client.messages.create.call_args.kwargs
     assert call_kwargs["model"] == "claude-sonnet-4-6"
+
+
+# ── Prompt caching tests ──────────────────────────────────────────────────────
+
+async def test_classifier_uses_cache_control_triage():
+    """triage() must pass system as a list with cache_control=ephemeral."""
+    resp = _make_tool_response("triage_result", {"is_relevant": True, "reason": "ok"})
+    mock_client = _make_client(resp)
+    clf = Classifier(_client=mock_client)
+    await clf.triage(_INCIDENT)
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert isinstance(system, list), "system must be a list for cache_control to work"
+    assert len(system) == 1
+    assert system[0]["type"] == "text"
+    assert system[0]["cache_control"] == {"type": "ephemeral"}
+
+
+async def test_classifier_uses_cache_control_classify():
+    """deep_analyze() must pass system as a list with cache_control=ephemeral."""
+    resp = _make_tool_response(
+        "classify_incident",
+        {"incident_type": "fire", "severity": 7, "affects_operations": True,
+         "reasoning": "r", "recommended_action": "a"},
+    )
+    mock_client = _make_client(resp)
+    clf = Classifier(_client=mock_client)
+    await clf.deep_analyze(_INCIDENT)
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert isinstance(system, list), "system must be a list for cache_control to work"
+    assert len(system) == 1
+    assert system[0]["type"] == "text"
+    assert system[0]["cache_control"] == {"type": "ephemeral"}
