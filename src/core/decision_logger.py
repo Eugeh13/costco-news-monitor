@@ -8,7 +8,7 @@ Compatible con PostgreSQL y SQLite.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -70,7 +70,7 @@ async def log_processed_article(
     else:
         row.stage_reached = stage.value
         row.final_decision = final_decision.value
-        row.updated_at = datetime.utcnow()  # type: ignore[assignment]
+        row.updated_at = datetime.now(timezone.utc)  # type: ignore[assignment]
         for k, v in safe_fields.items():
             setattr(row, k, v)
         logger.debug(
