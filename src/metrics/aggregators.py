@@ -147,3 +147,65 @@ async def distribution_by_severity(session: AsyncSession) -> dict[str, int]:
         return {str(row.band): row.n for row in result}
     except Exception:
         return {}
+
+
+async def counts_within_vs_outside_radius(session: AsyncSession) -> dict[str, int]:
+    """Articles where geo was resolved, split by within_radius flag.
+
+    Returns {"within": N, "outside": N}. Falls back to zeros pre-merge of hotfix/model-fields.
+    """
+    try:
+        result = await session.execute(
+            text(
+                "SELECT within_radius, COUNT(*) AS n "
+                "FROM decision_log "
+                "WHERE within_radius IS NOT NULL "
+                "GROUP BY within_radius"
+            )
+        )
+        counts: dict[str, int] = {"within": 0, "outside": 0}
+        for row in result:
+            key = "within" if row.within_radius else "outside"
+            counts[key] = row.n
+        return counts
+    except Exception:
+        return {"within": 0, "outside": 0}
+
+
+async def duplicate_rate(session: AsyncSession) -> float:
+    """Fraction of processed articles flagged as duplicates by the dedup step.
+
+    Returns 0.0 when is_duplicate column does not exist yet (pre-merge of hotfix/model-fields).
+    """
+    try:
+        result = await session.execute(
+            text(
+                "SELECT "
+                "  SUM(CASE WHEN is_duplicate THEN 1 ELSE 0 END) AS dupes, "
+                "  COUNT(*) AS total "
+                "FROM decision_log "
+                "WHERE is_duplicate IS NOT NULL"
+            )
+        )
+        row = result.one_or_none()
+        if row is None or row.total == 0:
+            return 0.0
+        return int(row.dupes) / int(row.total)
+    except Exception:
+        return 0.0
+
+
+async def alerts_actually_sent(session: AsyncSession) -> int:
+    """Count of rows where telegram_sent = true (real alerts, not dry-run).
+
+    Returns 0 when telegram_sent column does not exist yet (pre-merge of hotfix/model-fields).
+    """
+    try:
+        result = await session.execute(
+            text(
+                "SELECT COUNT(*) AS n FROM decision_log WHERE telegram_sent = 1"
+            )
+        )
+        return int(result.scalar_one())
+    except Exception:
+        return 0
