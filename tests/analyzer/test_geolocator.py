@@ -12,6 +12,7 @@ from src.analyzer.geolocator import (
     geocode,
     is_within_radius,
 )
+from src.analyzer.types import GeolocationResult
 
 
 # ── distance_to_costcos / is_within_radius ────────────────────────────────────
@@ -93,16 +94,38 @@ async def test_geocode_http_error():
     assert result is None
 
 
-# ── extract_locations (mocked Anthropic) ──────────────────────────────────────
+# ── extract_locations (mocked Anthropic — tool_use format) ────────────────────
 
-def _make_anthropic_client(locations: list[str]) -> MagicMock:
-    text_block = MagicMock()
-    text_block.type = "text"
-    text_block.text = json.dumps(locations)
+def _make_tool_use_client(
+    exact_address: str | None = None,
+    neighborhood: str | None = None,
+    city: str = "Monterrey",
+    confidence: float = 0.8,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> MagicMock:
+    """Build a mock Anthropic client that returns a tool_use block."""
+    tool_block = MagicMock()
+    tool_block.type = "tool_use"
+    tool_block.name = "extract_incident_location"
+    tool_block.input = {
+        "exact_address": exact_address,
+        "neighborhood": neighborhood,
+        "city": city,
+        "latitude": latitude,
+        "longitude": longitude,
+        "confidence": confidence,
+        "reasoning": "Mock reasoning for test.",
+    }
 
     resp = MagicMock()
-    resp.content = [text_block]
-    resp.usage = MagicMock(input_tokens=200, output_tokens=30)
+    resp.content = [tool_block]
+    resp.usage = MagicMock(
+        input_tokens=400,
+        output_tokens=60,
+        cache_creation_input_tokens=0,
+        cache_read_input_tokens=0,
+    )
 
     client = MagicMock()
     client.messages = MagicMock()
@@ -111,29 +134,24 @@ def _make_anthropic_client(locations: list[str]) -> MagicMock:
 
 
 async def test_extract_locations_returns_list():
-    mock_client = _make_anthropic_client(["Av. Constitución", "San Pedro Garza García"])
-    result = await extract_locations("Accidente en Av. Constitución, San Pedro", client=mock_client)
-    assert result == ["Av. Constitución", "San Pedro Garza García"]
+    mock_client = _make_tool_use_client(
+        exact_address="Av. Constitución",
+        neighborhood="Centro",
+        city="Monterrey",
+    )
+    result = await extract_locations("Accidente en Av. Constitución, centro", client=mock_client)
+    assert "Av. Constitución" in result
+    assert len(result) >= 1
 
 
-async def test_extract_locations_empty():
-    mock_client = _make_anthropic_client([])
-    result = await extract_locations("El partido fue emocionante", client=mock_client)
-    assert result == []
+async def test_extract_locations_neighborhood_only():
+    mock_client = _make_tool_use_client(neighborhood="San Pedro Garza García", city="San Pedro")
+    result = await extract_locations("Incendio en San Pedro", client=mock_client)
+    assert any("San Pedro" in r for r in result)
 
 
-async def test_extract_locations_invalid_json_returns_empty():
-    text_block = MagicMock()
-    text_block.type = "text"
-    text_block.text = "I cannot identify locations."
-
-    resp = MagicMock()
-    resp.content = [text_block]
-    resp.usage = MagicMock(input_tokens=50, output_tokens=10)
-
-    mock_client = MagicMock()
-    mock_client.messages = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=resp)
-
-    result = await extract_locations("some text", client=mock_client)
+async def test_extract_locations_low_confidence_returns_empty():
+    """Confidence < 0.3 → geolocate_incident returns None → extract_locations returns []."""
+    mock_client = _make_tool_use_client(city="Monterrey", confidence=0.1)
+    result = await extract_locations("Reportan accidente en algún lugar", client=mock_client)
     assert result == []

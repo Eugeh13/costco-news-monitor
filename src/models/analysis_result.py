@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
@@ -27,5 +27,11 @@ class AnalysisResult(Base, TimestampMixin):
     raw_response: Mapped[str | None] = mapped_column(Text)
     summary: Mapped[str | None] = mapped_column(Text)
     reasoning: Mapped[str | None] = mapped_column(Text)
+
+    # ── Geolocation fields (T1.8) ─────────────────────────────────────────────
+    approximate_location: Mapped[str | None] = mapped_column(String(200))
+    exact_location_lat: Mapped[float | None] = mapped_column(Float)
+    exact_location_lng: Mapped[float | None] = mapped_column(Float)
+    geolocation_confidence: Mapped[float | None] = mapped_column(Float)
 
     incident: Mapped[Incident] = relationship("Incident", back_populates="analysis_result")
