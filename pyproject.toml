@@ -22,6 +22,7 @@ dependencies = [
     "feedparser>=6.0",
     "pytz>=2024.1",
     "selectolax>=0.3",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]
