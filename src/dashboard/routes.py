@@ -10,28 +10,16 @@ GET  /health
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Form, Query, Request, Response
+from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import Integer, desc, func, not_, select
 
 from src.dashboard.database import DbSession
 from src.dashboard.main import TEMPLATES
-
-try:
-    from src.models.decision_log import DecisionLog, FinalDecision, StageReached
-    from src.models.human_feedback import HumanFeedback, ShouldHaveBeen
-except ImportError:
-    from src.dashboard._model_stubs import (  # type: ignore[assignment]
-        DecisionLog,
-        FinalDecision,
-        HumanFeedback,
-        ShouldHaveBeen,
-        StageReached,
-    )
-
-from sqlalchemy import desc, distinct, func, not_, select
+from src.models.decision_log import DecisionLog, FinalDecision, StageReached
+from src.models.human_feedback import HumanFeedback, ShouldHaveBeen
 
 router = APIRouter()
 
@@ -59,7 +47,7 @@ def _sev_class(severity: Optional[int]) -> str:
 
 
 def _decision_class(decision: str) -> str:
-    if decision == "alert_sent":
+    if decision == "alerted":
         return "dec-alert"
     if decision == "error":
         return "dec-error"
@@ -156,7 +144,7 @@ async def log_detail(request: Request, log_id: int, db: DbSession):
     )
     prev_id = prev_result.scalar_one_or_none()
 
-    existing_feedback = entry.feedback[0] if entry.feedback else None
+    existing_feedback = entry.human_feedbacks[0] if entry.human_feedbacks else None
 
     return TEMPLATES.TemplateResponse(
         request,
@@ -180,9 +168,7 @@ async def log_detail(request: Request, log_id: int, db: DbSession):
 async def save_feedback(
     log_id: int,
     db: DbSession,
-    was_correct: Annotated[bool, Form()],
     should_have_been: Annotated[Optional[str], Form()] = None,
-    notes: Annotated[Optional[str], Form()] = None,
     next_id: Annotated[Optional[int], Form()] = None,
 ):
     result = await db.execute(select(DecisionLog).where(DecisionLog.id == log_id))
@@ -191,19 +177,13 @@ async def save_feedback(
         return HTMLResponse("<h1>Not found</h1>", status_code=404)
 
     # Upsert: if feedback exists, update it
-    if entry.feedback:
-        fb = entry.feedback[0]
-        fb.was_correct = was_correct
+    if entry.human_feedbacks:
+        fb = entry.human_feedbacks[0]
         fb.should_have_been = should_have_been or None
-        fb.notes = notes or None
-        fb.created_at = datetime.now(timezone.utc)
     else:
         fb = HumanFeedback(
             decision_log_id=log_id,
-            was_correct=was_correct,
             should_have_been=should_have_been or None,
-            notes=notes or None,
-            created_at=datetime.now(timezone.utc),
         )
         db.add(fb)
 
@@ -224,7 +204,7 @@ async def runs(request: Request, db: DbSession):
             func.max(DecisionLog.created_at).label("ended_at"),
             func.count(DecisionLog.id).label("total"),
             func.sum(
-                func.cast(DecisionLog.final_decision == "alert_sent", Integer)
+                func.cast(DecisionLog.final_decision == "alerted", Integer)
             ).label("alerts"),
             func.sum(
                 func.cast(DecisionLog.final_decision == "error", Integer)
@@ -249,7 +229,3 @@ async def health(db: DbSession):
     result = await db.execute(select(func.count()).select_from(DecisionLog))
     count = result.scalar_one_or_none() or 0
     return {"status": "ok", "decision_log_count": count}
-
-
-# SQLAlchemy Integer for cast in aggregate
-from sqlalchemy import Integer  # noqa: E402

@@ -16,11 +16,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, text
 
 from src.dashboard.database import get_engine
-
-try:
-    from src.models.decision_log import DecisionLog
-except ImportError:
-    from src.dashboard._model_stubs import DecisionLog  # type: ignore[assignment]
+from src.models.decision_log import DecisionLog
 
 log = structlog.get_logger()
 
