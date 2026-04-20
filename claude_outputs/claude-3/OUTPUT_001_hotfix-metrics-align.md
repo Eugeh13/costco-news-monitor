@@ -129,4 +129,4 @@ Total                               — 29 passed / 0 failed
 
 ## Commit hash final
 
-`d29bac6`
+`4d6132d` (hotfix/metrics-align final)
