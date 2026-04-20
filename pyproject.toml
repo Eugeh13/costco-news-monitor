@@ -23,6 +23,7 @@ dependencies = [
     "pytz>=2024.1",
     "selectolax>=0.3",
     "aiosqlite>=0.20",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]
@@ -31,7 +32,6 @@ dev = [
     "pytest-asyncio>=0.23",
     "mypy>=1.9",
     "ruff>=0.4",
-    "aiosqlite>=0.20",
 ]
 
 [tool.ruff]
