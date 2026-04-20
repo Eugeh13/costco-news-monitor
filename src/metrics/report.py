@@ -25,7 +25,7 @@ async def generate_markdown_report(session: AsyncSession) -> str:
     acc_stage = await quality.accuracy_by_stage(session)
     errors = await quality.top_error_patterns(session)
 
-    total_incidents = sum(stage_counts.values())
+    total_articles = sum(stage_counts.values())
 
     lines: list[str] = []
 
@@ -36,7 +36,7 @@ async def generate_markdown_report(session: AsyncSession) -> str:
         "",
         "| Métrica | Valor |",
         "|---------|-------|",
-        f"| Total incidentes procesados | {total_incidents} |",
+        f"| Total artículos procesados | {total_articles} |",
         f"| Throughput (última 24 h) | {tph:.2f} inc/h |",
         f"| Latencia promedio pipeline | {latency:.0f} ms |",
         f"| Tokens totales consumidos | {tokens['total']:,} |",

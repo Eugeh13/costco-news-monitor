@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from src.core.database import Base
 from src.metrics.report import generate_markdown_report
-from src.models.incident import Incident, IncidentStatus, IncidentType, Severity
+from tests.metrics.stubs import DecisionLog, FinalDecision, StageReached
 
 
 @pytest.fixture()
@@ -22,21 +22,25 @@ async def session() -> AsyncSession:
     await engine.dispose()
 
 
-async def test_generate_markdown_report_structure(session: AsyncSession) -> None:
-    session.add_all([
-        Incident(
-            title="Inc A",
-            incident_type=IncidentType.accidente_vial,
-            severity=Severity.grave,
-            status=IncidentStatus.alerted,
-        ),
-        Incident(
-            title="Inc B",
-            incident_type=IncidentType.incendio,
-            severity=Severity.critica,
-            status=IncidentStatus.dismissed,
-        ),
-    ])
+def _log(
+    stage: str = StageReached.notification.value,
+    decision: str = FinalDecision.alerted.value,
+    source_name: str = "Twitter",
+    incident_type: str | None = "accidente_vial",
+    severity_score: int | None = 7,
+) -> DecisionLog:
+    return DecisionLog(
+        run_id="run-01",
+        source_name=source_name,
+        stage_reached=stage,
+        final_decision=decision,
+        incident_type=incident_type,
+        severity_score=severity_score,
+    )
+
+
+async def test_generate_markdown_report_sections(session: AsyncSession) -> None:
+    session.add_all([_log(), _log(decision=FinalDecision.irrelevant.value)])
     await session.commit()
 
     md = await generate_markdown_report(session)
@@ -51,20 +55,17 @@ async def test_generate_markdown_report_structure(session: AsyncSession) -> None
     assert "## 7. Consumo de Tokens" in md
 
 
-async def test_generate_markdown_report_counts(session: AsyncSession) -> None:
+async def test_generate_markdown_report_stage_data(session: AsyncSession) -> None:
     session.add_all([
-        Incident(
-            title="X",
-            incident_type=IncidentType.seguridad,
-            severity=Severity.moderada,
-            status=IncidentStatus.alerted,
-        )
+        _log(stage=StageReached.triage.value),
+        _log(stage=StageReached.triage.value),
+        _log(stage=StageReached.notification.value),
     ])
     await session.commit()
 
     md = await generate_markdown_report(session)
-    # Total incidents appears in executive summary
-    assert "1 |" in md or "| 1 " in md
+    assert "triage" in md
+    assert "notification" in md
 
 
 async def test_generate_markdown_report_empty_db(session: AsyncSession) -> None:
