@@ -94,8 +94,12 @@ class TelegramClient:
         costco_distances: dict[str, float],
         *,
         source_url: Optional[str] = None,
+        dry_run: bool = False,
     ) -> dict:
-        """Build and send an incident alert with inline action buttons."""
+        """Build and send an incident alert with inline action buttons.
+
+        When dry_run=True, logs the payload but skips the actual HTTP call.
+        """
         sev_emoji = _severity_emoji(classification.severity)
         type_label = _TYPE_LABEL.get(classification.incident_type, "📌 Incidente")
 
@@ -131,15 +135,18 @@ class TelegramClient:
 
         inline_keyboard = [row] + ([extra_row] if extra_row else [])
 
-        return await self._post(
-            "sendMessage",
-            {
-                "chat_id": self._chat_id,
-                "text": text,
-                "parse_mode": "MarkdownV2",
-                "reply_markup": {"inline_keyboard": inline_keyboard},
-            },
-        )
+        payload = {
+            "chat_id": self._chat_id,
+            "text": text,
+            "parse_mode": "MarkdownV2",
+            "reply_markup": {"inline_keyboard": inline_keyboard},
+        }
+
+        if dry_run:
+            logger.info("send_alert dry_run=True — skipping HTTP call", text_preview=text[:120])
+            return {"dry_run": True, "payload": payload}
+
+        return await self._post("sendMessage", payload)
 
     async def handle_callback_query(self, callback_query: dict) -> None:
         """
