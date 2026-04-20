@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.incident import Incident, IncidentType, Severity
+from src.models.incident import Incident
 
 
 async def counts_by_stage(session: AsyncSession) -> dict[str, int]:

@@ -34,8 +34,8 @@ async def generate_markdown_report(session: AsyncSession) -> str:
         "",
         "## 1. Resumen Ejecutivo",
         "",
-        f"| Métrica | Valor |",
-        f"|---------|-------|",
+        "| Métrica | Valor |",
+        "|---------|-------|",
         f"| Total incidentes procesados | {total_incidents} |",
         f"| Throughput (última 24 h) | {tph:.2f} inc/h |",
         f"| Latencia promedio pipeline | {latency:.0f} ms |",
@@ -130,13 +130,13 @@ async def generate_markdown_report(session: AsyncSession) -> str:
     lines += [
         "## 7. Consumo de Tokens",
         "",
-        f"| Tipo | Tokens |",
-        f"|------|--------|",
+        "| Tipo | Tokens |",
+        "|------|--------|",
         f"| Prompt | {tokens['prompt']:,} |",
         f"| Completion | {tokens['completion']:,} |",
         f"| **Total** | **{tokens['total']:,}** |",
         "",
-        f"*Generado automáticamente por costco-news-monitor v2*",
+        "*Generado automáticamente por costco-news-monitor v2*",
     ]
 
     return "\n".join(lines)

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
