@@ -22,6 +22,7 @@ dependencies = [
     "feedparser>=6.0",
     "pytz>=2024.1",
     "selectolax>=0.3",
+    "aiosqlite>=0.20",
 ]
 
 [project.optional-dependencies]
