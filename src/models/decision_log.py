@@ -4,7 +4,7 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
@@ -50,6 +50,7 @@ class DecisionLog(Base, TimestampMixin):
     article_title: Mapped[str] = mapped_column(Text, nullable=False)
     source_name: Mapped[str] = mapped_column(String(100), nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    article_content_snippet: Mapped[str | None] = mapped_column(Text)
 
     # ── Pipeline tracking ─────────────────────────────────────────────────────
     stage_reached: Mapped[str] = mapped_column(
@@ -75,9 +76,22 @@ class DecisionLog(Base, TimestampMixin):
     geo_address: Mapped[str | None] = mapped_column(Text)
     nearest_costco: Mapped[str | None] = mapped_column(String(100))
     nearest_costco_dist_m: Mapped[float | None] = mapped_column(Float)
+    within_radius: Mapped[bool | None] = mapped_column(Boolean)
+
+    # ── Dedup ─────────────────────────────────────────────────────────────────
+    is_duplicate: Mapped[bool | None] = mapped_column(Boolean)
+
+    # ── Notification ──────────────────────────────────────────────────────────
+    telegram_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # ── Performance / cost tracking ───────────────────────────────────────────
+    total_tokens_input: Mapped[int | None] = mapped_column(Integer)
+    total_tokens_output: Mapped[int | None] = mapped_column(Integer)
+    total_latency_ms: Mapped[int | None] = mapped_column(Integer)
 
     # ── Error ─────────────────────────────────────────────────────────────────
     error_message: Mapped[str | None] = mapped_column(Text)
+    error_stage: Mapped[str | None] = mapped_column(String(100))
 
     # ── Relationships ─────────────────────────────────────────────────────────
     human_feedbacks: Mapped[list[HumanFeedback]] = relationship(
