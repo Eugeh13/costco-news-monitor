@@ -4,9 +4,8 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from src.core.database import Base
 from src.metrics.report import generate_markdown_report
-from tests.metrics.stubs import DecisionLog, FinalDecision, StageReached
+from tests.metrics.stubs import Base, DecisionLog, FinalDecision, StageReached
 
 
 @pytest.fixture()

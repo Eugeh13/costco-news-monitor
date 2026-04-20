@@ -9,9 +9,11 @@ from __future__ import annotations
 import enum
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from src.core.database import Base
+
+class Base(DeclarativeBase):
+    """Private base for metrics test stubs — isolated from src.core.database.Base."""
 
 
 class StageReached(str, enum.Enum):

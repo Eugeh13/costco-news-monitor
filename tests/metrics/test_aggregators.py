@@ -6,9 +6,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from src.core.database import Base
 from src.metrics import aggregators
-from tests.metrics.stubs import DecisionLog, FinalDecision, StageReached
+from tests.metrics.stubs import Base, DecisionLog, FinalDecision, StageReached
 
 
 @pytest.fixture()
