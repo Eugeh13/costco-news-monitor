@@ -10,6 +10,29 @@ El producto es un motor de recopilación asertiva de noticias. El caso de uso de
 
 No estamos construyendo producto final — estamos construyendo instrumentación para entender el sistema. Prioricen: simplicidad, visibilidad, feedback humano rápido.
 
+## Protocolo de comunicación (OBLIGATORIO para los 3 workers)
+
+Cada vez que termines una tarea asignada por el integrador, **debes** guardar un reporte en:
+
+```
+claude_outputs/<tu-carpeta>/OUTPUT_NNN_slug-descriptivo.md
+```
+
+- `<tu-carpeta>` es `claude-1`, `claude-2` o `claude-3` según quién seas
+- `NNN` es el número secuencial siguiente en tu carpeta (001, 002, 003…)
+- `slug-descriptivo` es 3-5 palabras en kebab-case que describan la tarea
+
+**El archivo debe incluir:**
+1. Qué tarea se completó
+2. Qué archivos se crearon o modificaron (con rutas)
+3. Resultado de los tests (número de tests pasando)
+4. Cualquier decisión de diseño no obvia que tomaste
+5. Problemas encontrados o pendientes
+
+**Luego haz commit y push de tu rama.** El integrador leerá el markdown para saber si puede proceder al merge.
+
+Ver `claude_outputs/README.md` para la convención completa.
+
 ## División del trabajo
 
 Tres capas en paralelo, con un CONTRATO DE DATOS compartido que todas respetan.
