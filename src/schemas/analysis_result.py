@@ -12,6 +12,10 @@ class AnalysisResultBase(BaseModel):
     raw_response: str | None = None
     summary: str | None = None
     reasoning: str | None = None
+    approximate_location: str | None = None
+    exact_location_lat: float | None = None
+    exact_location_lng: float | None = None
+    geolocation_confidence: float | None = None
 
 
 class AnalysisResultCreate(AnalysisResultBase):
