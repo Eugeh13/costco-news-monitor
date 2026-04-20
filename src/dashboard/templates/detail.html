@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}#{{ entry.id }} — {{ entry.article_title[:50] }}{% endblock %}
+
+{% block content %}
+{# ── Top nav ── #}
+<div class="detail-nav">
+  <a href="/" class="btn">← Lista</a>
+  {% if prev_id %}<a href="/log/{{ prev_id }}" class="btn">‹ Anterior</a>{% endif %}
+  <span style="color:var(--text-dim);font-size:12px">ID #{{ entry.id }}</span>
+  {% if next_id %}<a href="/log/{{ next_id }}" class="btn">Siguiente ›</a>{% endif %}
+  <div class="spacer"></div>
+  <span class="badge {{ decision_class(entry.final_decision) }}" style="font-size:12px">
+    {{ entry.final_decision }}
+  </span>
+</div>
+
+{# ── Keyboard shortcuts ── #}
+<div class="kb-hints">
+  <span style="color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:.4px">Atajos:</span>
+  <div class="kb-hint"><kbd>1</kbd> Correcta + siguiente</div>
+  <div class="kb-hint"><kbd>2</kbd> Incorrecta + abre form</div>
+  <div class="kb-hint"><kbd>3</kbd> Skip + siguiente</div>
+</div>
+
+{# ── Detail grid ── #}
+<div class="detail-grid">
+
+  {# Article ─────────── #}
+  <div class="detail-section full-width">
+    <h2>📰 Artículo</h2>
+    <div class="kv"><span class="kv-key">Título</span><span class="kv-val"><strong>{{ entry.article_title }}</strong></span></div>
+    <div class="kv"><span class="kv-key">URL</span><span class="kv-val"><a href="{{ entry.article_url }}" target="_blank">{{ entry.article_url[:100] }}{% if entry.article_url|length > 100 %}…{% endif %}</a></span></div>
+    <div class="kv"><span class="kv-key">Fuente</span><span class="kv-val">{{ entry.source_name }}</span></div>
+    <div class="kv"><span class="kv-key">Publicado</span><span class="kv-val">{{ entry.article_published_at.strftime('%d/%m/%Y %H:%M') if entry.article_published_at else '—' }}</span></div>
+    <div class="kv"><span class="kv-key">Procesado</span><span class="kv-val">{{ entry.created_at.strftime('%d/%m/%Y %H:%M:%S') if entry.created_at else '—' }}</span></div>
+    <div class="kv"><span class="kv-key">Run ID</span><span class="kv-val" style="color:var(--text-dim)">{{ entry.run_id }}</span></div>
+    {% if entry.article_content_snippet %}
+    <div style="margin-top:8px">
+      <div style="color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Snippet</div>
+      <div class="snippet-box">{{ entry.article_content_snippet }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Triage ─────────── #}
+  <div class="detail-section">
+    <h2>🔍 Triage</h2>
+    <div class="kv"><span class="kv-key">Pasó triage</span>
+      <span class="kv-val">
+        {% if entry.triage_passed is none %}—
+        {% elif entry.triage_passed %}<span style="color:var(--dismissed)">✓ Sí</span>
+        {% else %}<span style="color:var(--alert)">✗ No</span>{% endif %}
+      </span>
+    </div>
+    <div class="kv"><span class="kv-key">Stage alcanzado</span><span class="kv-val">{{ entry.stage_reached }}</span></div>
+    {% if entry.triage_reasoning %}
+    <div style="margin-top:8px">
+      <div style="color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Razonamiento</div>
+      <div class="snippet-box">{{ entry.triage_reasoning }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Clasificación ─────────── #}
+  <div class="detail-section">
+    <h2>🏷 Clasificación</h2>
+    <div class="kv"><span class="kv-key">Tipo</span><span class="kv-val">{{ entry.classified_type or '—' }}</span></div>
+    <div class="kv"><span class="kv-key">Severidad</span>
+      <span class="kv-val {{ sev_class(entry.classified_severity) }}">
+        {{ entry.classified_severity if entry.classified_severity is not none else '—' }}/10
+      </span>
+    </div>
+    {% if entry.classified_reasoning %}
+    <div style="margin-top:8px">
+      <div style="color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Razonamiento</div>
+      <div class="snippet-box">{{ entry.classified_reasoning }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Geo ─────────── #}
+  <div class="detail-section">
+    <h2>📍 Geolocalización</h2>
+    <div class="kv"><span class="kv-key">Dirección detectada</span><span class="kv-val">{{ entry.geo_address or '—' }}</span></div>
+    <div class="kv"><span class="kv-key">Coordenadas</span>
+      <span class="kv-val" style="color:var(--text-dim)">
+        {% if entry.geo_lat and entry.geo_lon %}{{ "%.4f"|format(entry.geo_lat) }}, {{ "%.4f"|format(entry.geo_lon) }}{% else %}—{% endif %}
+      </span>
+    </div>
+    <div class="kv"><span class="kv-key">Costco más cercano</span><span class="kv-val">{{ entry.geo_closest_costco or '—' }}</span></div>
+    <div class="kv"><span class="kv-key">Distancia</span><span class="kv-val">{{ dist_str(entry.geo_distance_meters) }}</span></div>
+    <div class="kv"><span class="kv-key">Dentro del radio</span>
+      <span class="kv-val">
+        {% if entry.within_radius is none %}—
+        {% elif entry.within_radius %}<span style="color:var(--alert)">✓ Sí (dentro de 3km)</span>
+        {% else %}<span style="color:var(--dismissed)">✗ No</span>{% endif %}
+      </span>
+    </div>
+  </div>
+
+  {# Decisión final ─────────── #}
+  <div class="detail-section">
+    <h2>⚖️ Decisión final</h2>
+    <div class="kv"><span class="kv-key">Decisión</span>
+      <span class="kv-val"><span class="badge {{ decision_class(entry.final_decision) }}">{{ entry.final_decision }}</span></span>
+    </div>
+    <div class="kv"><span class="kv-key">Es duplicado</span>
+      <span class="kv-val">
+        {% if entry.is_duplicate is none %}—
+        {% elif entry.is_duplicate %}<span style="color:var(--text-dim)">Sí</span>
+        {% else %}No{% endif %}
+      </span>
+    </div>
+    <div class="kv"><span class="kv-key">Telegram enviado</span>
+      <span class="kv-val">{{ '✓ Sí' if entry.telegram_sent else 'No' }}</span>
+    </div>
+    {% if entry.error_stage %}
+    <div class="kv"><span class="kv-key">Error en stage</span><span class="kv-val" style="color:var(--error)">{{ entry.error_stage }}</span></div>
+    <div class="kv"><span class="kv-key">Mensaje de error</span><span class="kv-val" style="color:var(--error)">{{ entry.error_message or '—' }}</span></div>
+    {% endif %}
+  </div>
+
+  {# Tokens / latencia ─────────── #}
+  <div class="detail-section">
+    <h2>⚡ Tokens &amp; Latencia</h2>
+    <div class="kv"><span class="kv-key">Tokens input</span><span class="kv-val">{{ entry.total_tokens_input or '—' }}</span></div>
+    <div class="kv"><span class="kv-key">Tokens output</span><span class="kv-val">{{ entry.total_tokens_output or '—' }}</span></div>
+    <div class="kv"><span class="kv-key">Latencia total</span>
+      <span class="kv-val">
+        {% if entry.total_latency_ms %}{{ entry.total_latency_ms }}ms ({{ "%.1f"|format(entry.total_latency_ms / 1000) }}s){% else %}—{% endif %}
+      </span>
+    </div>
+  </div>
+
+</div>{# /detail-grid #}
+
+{# ── Feedback form ── #}
+<div class="feedback-form" id="feedback-form">
+  <h2>💬 Feedback humano</h2>
+
+  {% if existing_feedback %}
+  <div class="feedback-existing">
+    Feedback previo: <strong>{{ '✓ Correcta' if existing_feedback.was_correct else '✗ Incorrecta' }}</strong>
+    {% if existing_feedback.should_have_been %} · debería haber sido: <em>{{ existing_feedback.should_have_been }}</em>{% endif %}
+    {% if existing_feedback.notes %} · "{{ existing_feedback.notes[:80] }}"{% endif %}
+    <span style="color:var(--text-dim);margin-left:8px">(puedes sobreescribir)</span>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/log/{{ entry.id }}/feedback" id="fb-form">
+    <input type="hidden" name="next_id" value="{{ next_id or '' }}" id="next-id-input">
+    <input type="hidden" name="was_correct" value="true" id="was-correct-input">
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>¿Decisión correcta?</label>
+        <select name="was_correct" id="was-correct-select" onchange="document.getElementById('was-correct-input').value=this.value">
+          <option value="true" {% if existing_feedback and existing_feedback.was_correct %}selected{% endif %}>✓ Sí, fue correcta</option>
+          <option value="false" {% if existing_feedback and not existing_feedback.was_correct %}selected{% endif %}>✗ No, fue incorrecta</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="should-have-group">
+        <label>¿Debería haber sido?</label>
+        <select name="should_have_been">
+          <option value="">— no aplica —</option>
+          {% for opt in should_have_options %}
+          <option value="{{ opt }}" {% if existing_feedback and existing_feedback.should_have_been == opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group" style="flex:1">
+        <label>Notas (opcional)</label>
+        <textarea name="notes" placeholder="Comentario libre…">{{ existing_feedback.notes if existing_feedback and existing_feedback.notes else '' }}</textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button type="submit" class="btn btn-primary">Guardar feedback</button>
+      {% if next_id %}
+      <a href="/log/{{ next_id }}" class="btn">Skip (sin guardar)</a>
+      {% endif %}
+      <a href="/" class="btn">← Volver a lista</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const nextId = "{{ next_id or '' }}";
+  const logId  = {{ entry.id }};
+
+  function submitCorrect() {
+    const f = document.createElement('form');
+    f.method = 'POST';
+    f.action = '/log/' + logId + '/feedback';
+    const fields = {was_correct:'true', next_id: nextId, should_have_been:'', notes:''};
+    for (const [k,v] of Object.entries(fields)) {
+      const i = document.createElement('input');
+      i.type='hidden'; i.name=k; i.value=v;
+      f.appendChild(i);
+    }
+    document.body.appendChild(f);
+    f.submit();
+  }
+
+  function openIncorrectForm() {
+    document.getElementById('was-correct-select').value = 'false';
+    document.getElementById('was-correct-input').value  = 'false';
+    document.getElementById('feedback-form').scrollIntoView({behavior:'smooth'});
+  }
+
+  function skipNext() {
+    if (nextId) window.location.href = '/log/' + nextId;
+    else window.location.href = '/';
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '1') { e.preventDefault(); submitCorrect(); }
+    if (e.key === '2') { e.preventDefault(); openIncorrectForm(); }
+    if (e.key === '3') { e.preventDefault(); skipNext(); }
+    if (e.key === 'ArrowLeft' && "{{ prev_id or '' }}") {
+      window.location.href = '/log/{{ prev_id or "" }}';
+    }
+    if (e.key === 'ArrowRight' && nextId) {
+      window.location.href = '/log/' + nextId;
+    }
+  });
+})();
+</script>
+{% endblock %}

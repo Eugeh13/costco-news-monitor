@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Corridas — Costco Monitor{% endblock %}
+
+{% block content %}
+<h1>Corridas del pipeline</h1>
+
+{% if run_rows %}
+<table class="run-table">
+  <thead>
+    <tr>
+      <th>Run ID</th>
+      <th>Inicio</th>
+      <th>Fin</th>
+      <th>Total</th>
+      <th>Alertas</th>
+      <th>Errores</th>
+      <th>Descartadas</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in run_rows %}
+    <tr>
+      <td style="font-family:monospace;color:var(--text-dim)">{{ r.run_id[:8] }}…</td>
+      <td style="white-space:nowrap">{{ r.started_at.strftime('%d/%m/%Y %H:%M') if r.started_at else '—' }}</td>
+      <td style="white-space:nowrap;color:var(--text-dim)">{{ r.ended_at.strftime('%H:%M:%S') if r.ended_at else '—' }}</td>
+      <td><strong>{{ r.total }}</strong></td>
+      <td style="color:var(--alert)">{{ r.alerts or 0 }}</td>
+      <td style="color:var(--error)">{{ r.errors or 0 }}</td>
+      <td style="color:var(--dismissed)">{{ (r.total - (r.alerts or 0) - (r.errors or 0)) }}</td>
+      <td>
+        <a href="/?run_id={{ r.run_id }}" class="btn">Ver decisiones</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:var(--text-dim);margin-top:40px;text-align:center">
+  Sin corridas registradas. Ejecuta <code>python scripts/run_pipeline.py</code> para comenzar.
+</p>
+{% endif %}
+{% endblock %}
