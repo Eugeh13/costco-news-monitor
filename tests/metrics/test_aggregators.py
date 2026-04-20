@@ -33,7 +33,9 @@ def _log(
     total_tokens_input: int | None = None,
     total_tokens_output: int | None = None,
     total_latency_ms: int | None = None,
-    offset_hours: int = 0,
+    within_radius: bool | None = None,
+    is_duplicate: bool | None = None,
+    telegram_sent: bool = False,
 ) -> DecisionLog:
     return DecisionLog(
         run_id="run-test-01",
@@ -45,6 +47,9 @@ def _log(
         total_tokens_input=total_tokens_input,
         total_tokens_output=total_tokens_output,
         total_latency_ms=total_latency_ms,
+        within_radius=within_radius,
+        is_duplicate=is_duplicate,
+        telegram_sent=telegram_sent,
     )
 
 
@@ -190,3 +195,63 @@ async def test_total_tokens_used(session: AsyncSession) -> None:
 async def test_total_tokens_used_no_data(session: AsyncSession) -> None:
     result = await aggregators.total_tokens_used(session)
     assert result == {"prompt": 0, "completion": 0, "total": 0}
+
+
+# ── counts_within_vs_outside_radius ───────────────────────────────────────────
+
+async def test_counts_within_vs_outside_radius(session: AsyncSession) -> None:
+    session.add_all([
+        _log(within_radius=True),
+        _log(within_radius=True),
+        _log(within_radius=False),
+        _log(within_radius=None),  # no geo — excluded
+    ])
+    await session.commit()
+
+    result = await aggregators.counts_within_vs_outside_radius(session)
+    assert result["within"] == 2
+    assert result["outside"] == 1
+
+
+async def test_counts_within_vs_outside_radius_empty(session: AsyncSession) -> None:
+    result = await aggregators.counts_within_vs_outside_radius(session)
+    assert result == {"within": 0, "outside": 0}
+
+
+# ── duplicate_rate ────────────────────────────────────────────────────────────
+
+async def test_duplicate_rate(session: AsyncSession) -> None:
+    session.add_all([
+        _log(is_duplicate=True),
+        _log(is_duplicate=False),
+        _log(is_duplicate=False),
+        _log(is_duplicate=None),  # not yet deduped — excluded
+    ])
+    await session.commit()
+
+    result = await aggregators.duplicate_rate(session)
+    assert abs(result - 1 / 3) < 0.01
+
+
+async def test_duplicate_rate_no_data(session: AsyncSession) -> None:
+    result = await aggregators.duplicate_rate(session)
+    assert result == 0.0
+
+
+# ── alerts_actually_sent ──────────────────────────────────────────────────────
+
+async def test_alerts_actually_sent(session: AsyncSession) -> None:
+    session.add_all([
+        _log(telegram_sent=True),
+        _log(telegram_sent=True),
+        _log(telegram_sent=False),
+    ])
+    await session.commit()
+
+    result = await aggregators.alerts_actually_sent(session)
+    assert result == 2
+
+
+async def test_alerts_actually_sent_none(session: AsyncSession) -> None:
+    result = await aggregators.alerts_actually_sent(session)
+    assert result == 0

@@ -7,6 +7,9 @@ from src.metrics.aggregators import (
     distribution_by_source,
     distribution_by_type,
     distribution_by_severity,
+    counts_within_vs_outside_radius,
+    duplicate_rate,
+    alerts_actually_sent,
 )
 from src.metrics.quality import (
     precision,
@@ -25,6 +28,9 @@ __all__ = [
     "distribution_by_source",
     "distribution_by_type",
     "distribution_by_severity",
+    "counts_within_vs_outside_radius",
+    "duplicate_rate",
+    "alerts_actually_sent",
     "precision",
     "recall",
     "accuracy_by_stage",
