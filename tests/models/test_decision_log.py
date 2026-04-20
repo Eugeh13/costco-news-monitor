@@ -155,3 +155,142 @@ async def test_unique_constraint_run_url(session: AsyncSession) -> None:
     with pytest.raises(IntegrityError):
         await session.flush()
     await session.rollback()
+
+
+# ── New fields (Op C hotfix) ──────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_new_fields_default_to_none_or_false(session: AsyncSession) -> None:
+    """All 8 new fields should have correct defaults when not supplied."""
+    row = _decision_log("run-101", url="https://example.com/new-defaults")
+    session.add(row)
+    await session.flush()
+
+    assert row.article_content_snippet is None
+    assert row.within_radius is None
+    assert row.is_duplicate is None
+    assert row.total_tokens_input is None
+    assert row.total_tokens_output is None
+    assert row.total_latency_ms is None
+    assert row.telegram_sent is False
+    assert row.error_stage is None
+
+
+@pytest.mark.asyncio
+async def test_article_content_snippet_stored(session: AsyncSession) -> None:
+    row = DecisionLog(
+        run_id="run-102",
+        article_url="https://example.com/snippet",
+        article_title="Incendio en Monterrey",
+        source_name="Milenio",
+        stage_reached=StageReached.triage.value,
+        final_decision=FinalDecision.pending.value,
+        article_content_snippet="Bomberos atendieron llamado en zona norte...",
+    )
+    session.add(row)
+    await session.flush()
+    assert row.article_content_snippet == "Bomberos atendieron llamado en zona norte..."
+
+
+@pytest.mark.asyncio
+async def test_within_radius_and_is_duplicate(session: AsyncSession) -> None:
+    row = DecisionLog(
+        run_id="run-103",
+        article_url="https://example.com/radius",
+        article_title="Bloqueo Lázaro Cárdenas",
+        source_name="Info7",
+        stage_reached=StageReached.geolocation.value,
+        final_decision=FinalDecision.alerted.value,
+        within_radius=True,
+        is_duplicate=False,
+    )
+    session.add(row)
+    await session.flush()
+    assert row.within_radius is True
+    assert row.is_duplicate is False
+
+
+@pytest.mark.asyncio
+async def test_token_and_latency_tracking(session: AsyncSession) -> None:
+    row = DecisionLog(
+        run_id="run-104",
+        article_url="https://example.com/tokens",
+        article_title="Balacera zona sur",
+        source_name="El Horizonte",
+        stage_reached=StageReached.notification.value,
+        final_decision=FinalDecision.alerted.value,
+        total_tokens_input=842,
+        total_tokens_output=310,
+        total_latency_ms=3750,
+    )
+    session.add(row)
+    await session.flush()
+    assert row.total_tokens_input == 842
+    assert row.total_tokens_output == 310
+    assert row.total_latency_ms == 3750
+
+
+@pytest.mark.asyncio
+async def test_telegram_sent_explicit_true(session: AsyncSession) -> None:
+    row = DecisionLog(
+        run_id="run-105",
+        article_url="https://example.com/tg-sent",
+        article_title="Accidente autopista",
+        source_name="Protección Civil NL",
+        stage_reached=StageReached.notification.value,
+        final_decision=FinalDecision.alerted.value,
+        telegram_sent=True,
+    )
+    session.add(row)
+    await session.flush()
+    assert row.telegram_sent is True
+
+
+@pytest.mark.asyncio
+async def test_error_stage_stored(session: AsyncSession) -> None:
+    row = DecisionLog(
+        run_id="run-106",
+        article_url="https://example.com/error-stage",
+        article_title="Noticia con error",
+        source_name="RSS Directo",
+        stage_reached=StageReached.error.value,
+        final_decision=FinalDecision.error.value,
+        error_message="Nominatim timeout after 3 retries",
+        error_stage="geolocation",
+    )
+    session.add(row)
+    await session.flush()
+    assert row.error_stage == "geolocation"
+    assert row.error_message is not None
+
+
+@pytest.mark.asyncio
+async def test_all_8_new_fields_together(session: AsyncSession) -> None:
+    """Integration: store all 8 new fields in a single row."""
+    row = DecisionLog(
+        run_id="run-107",
+        article_url="https://example.com/all-new-fields",
+        article_title="Tromba en Valle Oriente",
+        source_name="Milenio Monterrey",
+        stage_reached=StageReached.notification.value,
+        final_decision=FinalDecision.alerted.value,
+        article_content_snippet="Fuerte tromba azotó la zona...",
+        within_radius=True,
+        is_duplicate=False,
+        total_tokens_input=1024,
+        total_tokens_output=256,
+        total_latency_ms=2100,
+        telegram_sent=True,
+        error_stage=None,
+    )
+    session.add(row)
+    await session.flush()
+
+    assert row.article_content_snippet == "Fuerte tromba azotó la zona..."
+    assert row.within_radius is True
+    assert row.is_duplicate is False
+    assert row.total_tokens_input == 1024
+    assert row.total_tokens_output == 256
+    assert row.total_latency_ms == 2100
+    assert row.telegram_sent is True
+    assert row.error_stage is None
