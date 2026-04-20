@@ -69,17 +69,17 @@
         {{ log.article_title[:70] }}{% if log.article_title|length > 70 %}…{% endif %}
       </td>
       <td style="white-space:nowrap;color:var(--text-dim)">{{ log.stage_reached }}</td>
-      <td class="{{ sev_class(log.classified_severity) }}">
-        {{ log.classified_severity if log.classified_severity is not none else '—' }}
+      <td class="{{ sev_class(log.severity_score) }}">
+        {{ log.severity_score if log.severity_score is not none else '—' }}
       </td>
-      <td style="white-space:nowrap;color:var(--text-dim)">{{ dist_str(log.geo_distance_meters) }}</td>
+      <td style="white-space:nowrap;color:var(--text-dim)">{{ dist_str(log.nearest_costco_dist_m) }}</td>
       <td>
         <span class="badge {{ decision_class(log.final_decision) }}">
           {{ log.final_decision }}
         </span>
       </td>
       <td style="text-align:center">
-        {% if log.feedback %}
+        {% if log.human_feedbacks %}
         <span class="reviewed-dot" title="Revisado">●</span>
         {% else %}
         <span class="unreviewed-dot" title="Sin revisar">○</span>
