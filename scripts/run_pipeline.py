@@ -44,7 +44,7 @@ import structlog
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.analyzer.classifier import Classifier
-from src.analyzer.dedup import is_duplicate, reset_cache
+from src.analyzer.dedup import is_duplicate, is_duplicate_db, reset_cache
 from src.analyzer.geolocator import (
     distance_to_costcos,
     extract_locations,
@@ -119,7 +119,7 @@ async def _process_article(
         await log_processed_article(
             session, run_id, article, StageReached.dedup
         )
-        if is_duplicate(article.title, url):
+        if is_duplicate(article.title, url) or await is_duplicate_db(article.title, url, session):
             await log_processed_article(
                 session, run_id, article,
                 StageReached.dedup,
