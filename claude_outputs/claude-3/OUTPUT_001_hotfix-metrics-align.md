@@ -129,4 +129,4 @@ Total                               — 29 passed / 0 failed
 
 ## Commit hash final
 
-*(se actualizará al hacer el commit de este hotfix)*
+`d29bac6`
