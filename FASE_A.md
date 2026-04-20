@@ -1,5 +1,7 @@
 # Fase A — Observabilidad del motor de recopilación de noticias
 
+> **Actualizado 2026-04-19 post-merge:** nombres de campos alineados con el modelo real tras Op C de `INCONSISTENCIA_DASHBOARD.md`
+
 ## Objetivo general
 
 El producto es un motor de recopilación asertiva de noticias. El caso de uso de Costco Monterrey es solo el primer escenario de validación. Esta fase construye la infraestructura para MEDIR qué tan bien funciona el motor hoy, antes de optimizarlo.
@@ -35,22 +37,22 @@ Cada vez que el motor procesa una noticia, se guarda UN registro con:
 | source_name | str | fuente de la noticia (milenio, info7, etc) |
 | article_url | str unique | URL original |
 | article_title | str | título |
-| article_published_at | datetime tz nullable | fecha de publicación |
+| published_at | datetime tz nullable | fecha de publicación |
 | article_content_snippet | text | primeras ~500 chars |
-| stage_reached | enum | hasta dónde llegó: triaged, classified, geolocated, deduped, alerted, dismissed |
+| stage_reached | enum | hasta dónde llegó: scraped, triage, deep_analysis, geolocation, dedup, notification, error |
 | triage_passed | bool nullable | ¿pasó el triage inicial? |
-| triage_reasoning | text nullable | por qué pasó o no |
-| classified_type | str nullable | tipo del analyzer |
-| classified_severity | int nullable | 1-10 |
-| classified_reasoning | text nullable | razonamiento del classifier |
+| triage_reason | text nullable | por qué pasó o no |
+| incident_type | str nullable | tipo del analyzer |
+| severity_score | int nullable | 1-10 |
+| ai_reasoning | text nullable | razonamiento del classifier |
 | geo_address | str nullable | ubicación detectada |
 | geo_lat | float nullable | |
 | geo_lon | float nullable | |
-| geo_closest_costco | str nullable | nombre de sucursal más cercana |
-| geo_distance_meters | float nullable | distancia en metros |
+| nearest_costco | str nullable | nombre de sucursal más cercana |
+| nearest_costco_dist_m | float nullable | distancia en metros |
 | within_radius | bool nullable | ¿dentro del radio de 3km? |
 | is_duplicate | bool nullable | ¿el dedup lo marcó? |
-| final_decision | enum | alert_sent, dismissed_not_relevant, dismissed_too_far, dismissed_duplicate, dismissed_low_severity, error |
+| final_decision | enum | alerted, irrelevant, out_of_radius, duplicate, no_geo, error, pending |
 | error_stage | str nullable | si falló, en qué etapa |
 | error_message | text nullable | si falló, mensaje |
 | total_tokens_input | int nullable | suma de tokens input LLM |
