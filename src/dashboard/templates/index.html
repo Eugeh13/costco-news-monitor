@@ -1,114 +1,72 @@
 {% extends "base.html" %}
-{% block title %}Decisiones — Costco Monitor{% endblock %}
+{% block title %}Mapa — Costco MTY Alert{% endblock %}
+
+{% block head %}
+<style>
+  #map { height: 70vh; }
+  .costco-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: transparent;
+    border: none;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<h1>Decisiones del motor <span style="color:var(--text-dim);font-weight:400">({{ total }} total)</span></h1>
+<div class="p-4">
+  <header class="bg-white shadow-sm rounded-lg p-4 mb-4">
+    <h1 class="text-2xl font-bold text-gray-800">Costco MTY Alert</h1>
+    <p class="text-gray-500 text-sm mt-1">Monitoreo de incidentes en tiempo real</p>
+  </header>
 
-{# ── Filters ── #}
-<form class="filters" method="get" action="/">
-  <div class="filter-group">
-    <label>Corrida</label>
-    <select name="run_id">
-      <option value="">— todas —</option>
-      {% for r in runs %}
-      <option value="{{ r.run_id }}" {% if run_id == r.run_id %}selected{% endif %}>
-        {{ r.run_id[:8] }}… · {{ r.started_at.strftime('%d/%m %H:%M') if r.started_at else '?' }}
-      </option>
-      {% endfor %}
-    </select>
+  <div class="rounded-lg shadow-md overflow-hidden">
+    <div id="map"></div>
   </div>
 
-  <div class="filter-group">
-    <label>Decisión final</label>
-    <select name="final_decision" multiple size="3">
-      {% for d in all_decisions %}
-      <option value="{{ d }}" {% if d in selected_decisions %}selected{% endif %}>{{ d }}</option>
-      {% endfor %}
-    </select>
-  </div>
-
-  <div class="filter-group">
-    <label>&nbsp;</label>
-    <label class="filter-check">
-      <input type="checkbox" name="only_unreviewed" value="true"
-             {% if only_unreviewed %}checked{% endif %}>
-      Solo sin revisar
-    </label>
-  </div>
-
-  <button type="submit">Filtrar</button>
-  <a href="/" class="btn" style="align-self:flex-end">Limpiar</a>
-</form>
-
-{# ── Table ── #}
-{% if logs %}
-<table>
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Fecha</th>
-      <th>Fuente</th>
-      <th>Título</th>
-      <th>Stage</th>
-      <th>Sev</th>
-      <th>Distancia</th>
-      <th>Decisión</th>
-      <th>Rev</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for log in logs %}
-    <tr>
-      <td style="color:var(--text-dim)">{{ log.id }}</td>
-      <td style="white-space:nowrap;color:var(--text-dim)">
-        {{ log.created_at.strftime('%d/%m %H:%M') if log.created_at else '—' }}
-      </td>
-      <td style="white-space:nowrap">{{ log.source_name }}</td>
-      <td class="title-cell" title="{{ log.article_title }}">
-        {{ log.article_title[:70] }}{% if log.article_title|length > 70 %}…{% endif %}
-      </td>
-      <td style="white-space:nowrap;color:var(--text-dim)">{{ log.stage_reached }}</td>
-      <td class="{{ sev_class(log.severity_score) }}">
-        {{ log.severity_score if log.severity_score is not none else '—' }}
-      </td>
-      <td style="white-space:nowrap;color:var(--text-dim)">{{ dist_str(log.nearest_costco_dist_m) }}</td>
-      <td>
-        <span class="badge {{ decision_class(log.final_decision) }}">
-          {{ log.final_decision }}
-        </span>
-      </td>
-      <td style="text-align:center">
-        {% if log.human_feedbacks %}
-        <span class="reviewed-dot" title="Revisado">●</span>
-        {% else %}
-        <span class="unreviewed-dot" title="Sin revisar">○</span>
-        {% endif %}
-      </td>
-      <td>
-        <a href="/log/{{ log.id }}" class="btn">Revisar</a>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-{# ── Pagination ── #}
-{% if total_pages > 1 %}
-<div class="pagination">
-  {% if page > 1 %}
-  <a href="?page={{ page - 1 }}&run_id={{ run_id or '' }}&only_unreviewed={{ 'true' if only_unreviewed else '' }}{% for d in selected_decisions %}&final_decision={{ d }}{% endfor %}">‹ Anterior</a>
-  {% endif %}
-  <span class="current">{{ page }} / {{ total_pages }}</span>
-  {% if page < total_pages %}
-  <a href="?page={{ page + 1 }}&run_id={{ run_id or '' }}&only_unreviewed={{ 'true' if only_unreviewed else '' }}{% for d in selected_decisions %}&final_decision={{ d }}{% endfor %}">Siguiente ›</a>
-  {% endif %}
+  <footer class="text-sm text-gray-500 p-4 text-center">
+    Datos actualizados: <span id="last-update">—</span>
+  </footer>
 </div>
-{% endif %}
+{% endblock %}
 
-{% else %}
-<p style="color:var(--text-dim);margin-top:40px;text-align:center">
-  Sin decisiones registradas aún. Ejecuta primero <code>python scripts/run_pipeline.py</code>.
-</p>
-{% endif %}
+{% block scripts %}
+<script>
+  const COSTCO_LOCATIONS = [
+    { name: "Carretera Nacional", lat: 25.6026, lng: -100.2640, key: "carretera_nacional" },
+    { name: "Cumbres", lat: 25.7353, lng: -100.4022, key: "cumbres" },
+    { name: "Valle Oriente", lat: 25.6457, lng: -100.3072, key: "valle_oriente" }
+  ];
+  const RADIUS_METERS = 3000;
+
+  const map = L.map('map').setView([25.6767, -100.3161], 12);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  COSTCO_LOCATIONS.forEach(costco => {
+    L.marker([costco.lat, costco.lng], {
+      icon: L.divIcon({
+        html: '🛒',
+        className: 'costco-marker',
+        iconSize: [32, 32]
+      })
+    }).addTo(map).bindPopup(`<b>Costco ${costco.name}</b>`);
+
+    L.circle([costco.lat, costco.lng], {
+      radius: RADIUS_METERS,
+      color: '#dc2626',
+      fillColor: '#fca5a5',
+      fillOpacity: 0.1,
+      weight: 2
+    }).addTo(map);
+  });
+
+  document.getElementById('last-update').textContent =
+    new Date().toLocaleString('es-MX', { timeZone: 'America/Monterrey' });
+</script>
 {% endblock %}

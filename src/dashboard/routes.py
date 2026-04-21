@@ -54,9 +54,16 @@ def _decision_class(decision: str) -> str:
     return "dec-dismissed"
 
 
-# ── GET / ─────────────────────────────────────────────────────
+# ── GET / — map dashboard ─────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
+async def map_index(request: Request):
+    return TEMPLATES.TemplateResponse(request, "index.html", {})
+
+
+# ── GET /decisions — decision log table ──────────────────────
+
+@router.get("/decisions", response_class=HTMLResponse)
 async def index(
     request: Request,
     db: DbSession,
@@ -96,7 +103,7 @@ async def index(
 
     return TEMPLATES.TemplateResponse(
         request,
-        "index.html",
+        "decisions.html",
         {
             "logs": logs,
             "page": page,
