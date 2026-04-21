@@ -108,16 +108,16 @@ Deuda técnica pendiente → BACKLOG.md:
 Dashboard corriendo localmente en `http://localhost:8000` con mapa Leaflet mostrando incidentes reales de las últimas 72 hrs, con filtros básicos y detalle por incidente.
 
 ### Tareas
-- [ ] **T2.1** Setup de Tailwind CSS vía CDN en el template base — 30 min
-- [ ] **T2.2** Setup de Leaflet.js vía CDN en página principal — 30 min
-- [ ] **T2.3** Endpoint `GET /api/incidents` con query params: `since`, `severity_min`, `branch`, limit — 2 hrs
-- [ ] **T2.4** Página principal `/` con mapa centrado en MTY + 3 pins fijos de los Costcos + círculos de radio 3km — 2 hrs
-- [ ] **T2.5** Pins dinámicos de incidentes alimentados desde `/api/incidents` vía fetch JS + rendering en Leaflet — 2 hrs
-- [ ] **T2.6** Colores de pins por severidad (rojo 8-10, naranja 5-7, amarillo 3-4, gris 1-2) — 1 hr
-- [ ] **T2.7** Panel lateral con click en pin: muestra título, fuente, timestamp, descripción, link al artículo original — 2 hrs
-- [ ] **T2.8** Filtros en UI (Alpine.js): por sucursal, por severidad mínima, por rango temporal (1h/6h/24h/72h) — 2 hrs
-- [ ] **T2.9** Auto-refresh del mapa cada 60 segundos (HTMX o setTimeout) — 30 min
-- [ ] **T2.10** Tests de integración: `/api/incidents` responde schema correcto con filtros — 1 hr
+- [x] **T2.1** Setup de Tailwind CSS vía CDN en el template base — 30 min
+- [x] **T2.2** Setup de Leaflet.js vía CDN en página principal — 30 min
+- [x] **T2.3** Endpoint `GET /api/incidents` con query params: `since`, `severity_min`, `branch`, limit — 2 hrs
+- [x] **T2.4** Página principal `/` con mapa centrado en MTY + 3 pins fijos de los Costcos + círculos de radio 3km — 2 hrs
+- [x] **T2.5** Pins dinámicos de incidentes alimentados desde `/api/incidents` vía fetch JS + rendering en Leaflet — 2 hrs
+- [x] **T2.6** Colores de pins por severidad (rojo 8-10, naranja 5-7, amarillo 3-4, gris 1-2) — 1 hr
+- [x] **T2.7** Panel lateral con click en pin: muestra título, fuente, timestamp, descripción, link al artículo original — 2 hrs
+- [x] **T2.8** Filtros en UI (Alpine.js): por sucursal, por severidad mínima, por rango temporal (1h/6h/24h/72h) — 2 hrs
+- [x] **T2.9** Auto-refresh del mapa cada 60 segundos (HTMX o setTimeout) — 30 min
+- [x] **T2.10** Tests de integración: `/api/incidents` responde schema correcto con filtros — 1 hr
 
 ### Criterio de éxito
 - Dashboard carga en <2 segundos
