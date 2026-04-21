@@ -105,9 +105,17 @@ def _canonicalize_url(url: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
 
 
-async def is_duplicate_db(title: str, url: str, session: AsyncSession) -> bool:
+async def is_duplicate_db(
+    title: str,
+    url: str,
+    session: AsyncSession,
+    exclude_run_id: str | None = None,
+) -> bool:
     """Return True if the same canonical URL or normalised title exists in decision_log
     within the last 24 hours.  Falls back gracefully when the table does not exist.
+
+    Pass exclude_run_id to ignore entries from the current run (which are written
+    before this check is called and would otherwise cause false positives).
     """
     since = datetime.now(UTC) - timedelta(hours=24)
     canonical = _canonicalize_url(url)
@@ -116,21 +124,22 @@ async def is_duplicate_db(title: str, url: str, session: AsyncSession) -> bool:
     try:
         # Fast path: exact canonical-URL match
         if canonical:
-            result = await session.execute(
-                text(
-                    "SELECT COUNT(*) FROM decision_log "
-                    "WHERE article_url = :url AND created_at >= :since"
-                ),
-                {"url": canonical, "since": since.isoformat()},
-            )
+            base_sql = "SELECT COUNT(*) FROM decision_log WHERE article_url = :url AND created_at >= :since"
+            params: dict = {"url": canonical, "since": since.isoformat()}
+            if exclude_run_id:
+                base_sql += " AND run_id != :run_id"
+                params["run_id"] = exclude_run_id
+            result = await session.execute(text(base_sql), params)
             if result.scalar_one() > 0:
                 return True
 
         # Slower path: normalised-title match (Python-side comparison)
-        rows = await session.execute(
-            text("SELECT article_title FROM decision_log WHERE created_at >= :since"),
-            {"since": since.isoformat()},
-        )
+        title_sql = "SELECT article_title FROM decision_log WHERE created_at >= :since"
+        title_params: dict = {"since": since.isoformat()}
+        if exclude_run_id:
+            title_sql += " AND run_id != :run_id"
+            title_params["run_id"] = exclude_run_id
+        rows = await session.execute(text(title_sql), title_params)
         for row in rows:
             if _normalize(row.article_title) == norm_title:
                 return True

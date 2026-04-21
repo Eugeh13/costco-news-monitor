@@ -119,7 +119,7 @@ async def _process_article(
         await log_processed_article(
             session, run_id, article, StageReached.dedup
         )
-        if is_duplicate(article.title, url) or await is_duplicate_db(article.title, url, session):
+        if is_duplicate(article.title, url) or await is_duplicate_db(article.title, url, session, exclude_run_id=run_id):
             await log_processed_article(
                 session, run_id, article,
                 StageReached.dedup,
