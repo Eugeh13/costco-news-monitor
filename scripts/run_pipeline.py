@@ -47,8 +47,8 @@ from src.analyzer.classifier import Classifier
 from src.analyzer.dedup import is_duplicate, is_duplicate_db, reset_cache
 from src.analyzer.geolocator import (
     distance_to_costcos,
-    extract_locations,
     geocode,
+    geolocate_incident,
     is_within_radius,
 )
 from src.analyzer.types import IncidentInput
@@ -207,7 +207,18 @@ async def _process_article(
         await session.commit()
 
         text = f"{article.title} {article.content_snippet}"
-        place_names = await extract_locations(text)
+        geo_result = await geolocate_incident(text)
+        place_names: list[str] = []
+        if geo_result:
+            if geo_result.exact_address:
+                place_names.append(geo_result.exact_address)
+            if geo_result.neighborhood:
+                addr = f"{geo_result.neighborhood}, {geo_result.city}"
+                if addr not in place_names:
+                    place_names.append(addr)
+            if not place_names:
+                place_names.append(geo_result.city)
+
         geo = None
         distances: dict[str, float] = {}
 
@@ -217,11 +228,21 @@ async def _process_article(
                 distances = distance_to_costcos(geo.lat, geo.lon)
                 break
 
+        _geo_extra: dict = {}
+        if geo_result:
+            _geo_extra = {
+                "approximate_location": geo_result.neighborhood or geo_result.city,
+                "exact_location_lat": geo_result.latitude,
+                "exact_location_lng": geo_result.longitude,
+                "geolocation_confidence": geo_result.confidence,
+            }
+
         if geo is None:
             await log_processed_article(
                 session, run_id, article,
                 StageReached.geolocation,
                 FinalDecision.no_geo,
+                **_geo_extra,
             )
             await session.commit()
             stats["no_geo"] += 1
@@ -239,6 +260,7 @@ async def _process_article(
                 geo_address=geo.address,
                 nearest_costco=nearest_name,
                 nearest_costco_dist_m=nearest_dist,
+                **_geo_extra,
             )
             await session.commit()
             stats["out_of_radius"] += 1
@@ -255,6 +277,7 @@ async def _process_article(
             geo_address=geo.address,
             nearest_costco=nearest_name,
             nearest_costco_dist_m=nearest_dist,
+            **_geo_extra,
         )
         await session.commit()
 

@@ -113,6 +113,7 @@
 - [ ] Revisión de seguridad: ¿el endpoint `/api/incidents` debería requerir auth?
 - [ ] Configuración de logging estructurado consistente en todos los módulos
 - [ ] Documentación interna de cómo correr el proyecto localmente desde cero
+- [ ] [DEUDA TÉCNICA] Consolidar decision_log y analysis_result en una sola tabla de resultados (hoy divergidas por legacy)
 
 ---
 

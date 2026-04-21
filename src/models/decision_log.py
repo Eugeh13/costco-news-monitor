@@ -77,6 +77,10 @@ class DecisionLog(Base, TimestampMixin):
     nearest_costco: Mapped[str | None] = mapped_column(String(100))
     nearest_costco_dist_m: Mapped[float | None] = mapped_column(Float)
     within_radius: Mapped[bool | None] = mapped_column(Boolean)
+    approximate_location: Mapped[str | None] = mapped_column(String(200))
+    exact_location_lat: Mapped[float | None] = mapped_column(Float)
+    exact_location_lng: Mapped[float | None] = mapped_column(Float)
+    geolocation_confidence: Mapped[float | None] = mapped_column(Float)
 
     # ── Dedup ─────────────────────────────────────────────────────────────────
     is_duplicate: Mapped[bool | None] = mapped_column(Boolean)
