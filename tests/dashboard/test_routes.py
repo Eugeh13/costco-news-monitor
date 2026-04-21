@@ -30,28 +30,28 @@ class TestHealth:
         assert resp.json()["decision_log_count"] >= 5
 
 
-# ── GET / ─────────────────────────────────────────────────────
+# ── GET /decisions ────────────────────────────────────────────
 
 class TestIndex:
     async def test_returns_200(self, client: AsyncClient, seed_logs):
-        resp = await client.get("/")
+        resp = await client.get("/decisions")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
 
     async def test_shows_articles(self, client: AsyncClient, seed_logs):
-        resp = await client.get("/")
+        resp = await client.get("/decisions")
         body = resp.text
         assert "Choque en Carretera Nacional" in body
         assert "Incendio en bodega Escobedo" in body
 
     async def test_filter_by_run_id(self, client: AsyncClient, seed_logs):
-        resp = await client.get(f"/?run_id={_RUN_ID_A}")
+        resp = await client.get(f"/decisions?run_id={_RUN_ID_A}")
         body = resp.text
         assert "Choque en Carretera Nacional" in body
         assert "Balacera en Apodaca" not in body
 
     async def test_filter_by_final_decision(self, client: AsyncClient, seed_logs):
-        resp = await client.get("/?final_decision=alerted")
+        resp = await client.get("/decisions?final_decision=alerted")
         body = resp.text
         assert "Choque en Carretera Nacional" in body
         assert "Nota sin relevancia local" not in body
@@ -61,16 +61,16 @@ class TestIndex:
         db_session.add(fb)
         await db_session.commit()
 
-        resp = await client.get("/?only_unreviewed=true")
+        resp = await client.get("/decisions?only_unreviewed=true")
         body = resp.text
         assert "Incendio en bodega Escobedo" in body
 
     async def test_pagination_page_param(self, client: AsyncClient, seed_logs):
-        resp = await client.get("/?page=1")
+        resp = await client.get("/decisions?page=1")
         assert resp.status_code == 200
 
     async def test_empty_db_returns_200_no_crash(self, client: AsyncClient):
-        resp = await client.get("/")
+        resp = await client.get("/decisions")
         assert resp.status_code == 200
 
 

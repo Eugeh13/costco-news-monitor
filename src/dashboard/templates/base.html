@@ -3,19 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Costco Monitor{% endblock %}</title>
+  <title>{% block title %}Costco MTY Alert{% endblock %}</title>
+  <link rel="icon" href="data:,">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WLcE="
+    crossorigin=""></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  {% block head %}{% endblock %}
+  {# Legacy per-page styles for Fase A templates #}
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-<nav>
-  <span class="brand">🗞 Costco Monitor</span>
-  <a href="/">Decisiones</a>
-  <a href="/runs">Corridas</a>
-  <a href="/health" target="_blank">Health</a>
-</nav>
-<div class="container">
+<body class="bg-gray-50">
+  <nav class="bg-white shadow-sm px-4 py-3 flex gap-6 items-center text-sm">
+    <span class="font-bold text-gray-800 mr-2">🛒 Costco MTY Alert</span>
+    <a href="/" class="text-gray-600 hover:text-gray-900">Mapa</a>
+    <a href="/decisions" class="text-gray-600 hover:text-gray-900">Decisiones</a>
+    <a href="/runs" class="text-gray-600 hover:text-gray-900">Corridas</a>
+    <a href="/health" target="_blank" class="text-gray-600 hover:text-gray-900">Health</a>
+  </nav>
   {% block content %}{% endblock %}
-</div>
-{% block scripts %}{% endblock %}
+  {% block scripts %}{% endblock %}
 </body>
 </html>
