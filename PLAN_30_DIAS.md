@@ -262,3 +262,48 @@ Si en semana 1 ya se ve que no llegamos, es momento de descartar algo (probablem
 **Status vs plan:**
 - 5 días adelantados del plan de 30 días
 - Semana 2 terminará mañana probablemente (vs día 14 planeado)
+
+---
+
+## Día 1 — Retrospectiva completa (20 abril 2026) ✅
+
+**Horas reales:** ~6 hrs  
+**Horas planeadas del plan:** 10-11 hrs (Semana 1 sola)  
+**Adelanto:** ~6 días del plan de 30
+
+### Entregado
+
+- Semana 1 COMPLETA: 11/11 tareas (fix geolocator con tool_use, prompt caching, filtros temporales, dedup, schema con campos geo, migraciones 0004+74b26b81)
+- Semana 2 COMPLETA: 10/10 tareas (endpoint /api/incidents, token logging, dashboard base con mapa Leaflet funcional)
+- Dashboard visible en http://localhost:8000/ con 3 pins Costco + círculos 3km
+- Estrategia comercial documentada (COMMERCIAL_STRATEGY.md)
+- Research de fix geolocator documentado (docs/GEOLOCATOR_FIX_RESEARCH.md)
+
+### Métricas finales
+
+- Tests: 214/214 passing (+43 vs baseline 171)
+- Decision_logs en DB: 331 totales, 19 con token data
+- Costo medido: $0.002/artículo procesado (primera medición real — $0.0187 total sobre 19 registros instrumentados)
+- Corridas de validación: 3 ejecutadas OK
+
+### Bugs encontrados y resueltos
+
+1. **DB dedup false-positive:** pipeline logueaba artículo ANTES del dedup check. Fix: `exclude_run_id` parameter.
+2. **Geolocator markdown fences:** JSON envuelto en `` ```json ``` `` rompía parser. Fix: rewrite con tool_use API de Anthropic.
+3. **Schema mismatch:** claude-1 agregó campos a `analysis_results` pero pipeline escribe a `decision_log`. Fix: migración 74b26b81 agregó mismos campos a `decision_log`.
+
+### Issues conocidos al cierre
+
+- **Nominatim imprecisión:** incidentes clasificados quedan `within_radius=0` aunque estén cerca. FIX SEMANA 3 con Mapbox (ver docs/GEOLOCATOR_FIX_RESEARCH.md).
+- **Tailwind CDN warning "not for production":** carga 3 MB vs ~10 KB optimizados. Fix Semana 3 con build local.
+- **Scrapers Milenio/Info7/Horizonte rotos** (403/404). Decisión pendiente Semana 3: arreglar o descartar del roadmap.
+
+### Semana 2 Parte B — pendiente real para Día 2
+
+- Pins dinámicos de incidentes desde /api/incidents
+- Colores por severidad (rojo >=8, naranja 5-7, amarillo 3-4, gris <3)
+- Panel lateral al click en pin con detalle completo
+- Filtros Alpine.js (sucursal, severidad mínima, ventana temporal)
+- Toggle "solo dentro del radio"
+- Auto-refresh cada 60s
+- Tests de integración frontend
