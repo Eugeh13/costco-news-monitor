@@ -116,6 +116,9 @@
 - [ ] Documentación interna de cómo correr el proyecto localmente desde cero
 - [ ] [DEUDA TÉCNICA Semana 1] Consolidar decision_log y analysis_result en una sola tabla de resultados (hoy divergidas por legacy)
 - [ ] Investigar 45 registros históricos en no_geo (corridas de Op C)
+- [ ] [SEMANA 3 URGENTE] Fix precisión geolocator. Nominatim resuelve calles/carreteras a centroides genéricos. Resultado: incidentes clasificados terminan con within_radius=0 aunque estén dentro de 3km. Opciones bajo investigación (ver docs/GEOLOCATOR_FIX_RESEARCH.md).
+- [ ] [DEUDA OPERACIONAL] Scrapers rotos Milenio/Info7/Horizonte. Decidir Semana 3 si se arreglan o se descartan oficialmente del roadmap. Google News RSS cubre suficiente por ahora.
+- [ ] [INSIGHT] El endpoint /api/incidents devuelve 0 cuando within_radius_only=true porque los 28 incidentes clasificados tienen within_radius=0 y los 4 alerts históricos tienen within_radius=NULL. Se resolverá cuando el geolocator esté fixeado (Semana 3).
 
 ---
 

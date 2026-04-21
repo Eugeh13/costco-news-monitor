@@ -233,3 +233,32 @@ Si en semana 1 ya se ve que no llegamos, es momento de descartar algo (probablem
 ---
 
 *Documento creado el 20 abril 2026. Primera versión. Se actualiza solo en retros dominicales.*
+
+---
+
+### Retrospectiva Día 1 — 20 abril 2026 ✅
+
+**Horas reales:** ~4-5 hrs (vs 10-11 hrs planeadas para Semana 1 completa)
+
+**Completado hoy:**
+- Semana 1 COMPLETA: T1.2, T1.3, T1.4, T1.5, T1.6, T1.7, T1.8, T1.9, T1.10, T1.11
+- Semana 2 Parte A: T2.3 API endpoint, token logging infraestructura, migración 0005
+- Estrategia comercial documentada (COMMERCIAL_STRATEGY.md)
+- 205/205 tests passing
+
+**Descubrimientos críticos:**
+1. Geolocator imprecisión con Nominatim — dirigido a Semana 3 como
+   prioridad alta (investigación de opciones en progreso esta noche)
+2. Decision logger no captura tokens en registros clasificados — fix
+   en progreso esta noche (week2/decision-logger-tokens-fix)
+3. Dedup tan efectivo que con when:1h hay pocos artículos nuevos por
+   corrida — insight operativo (no bug)
+
+**Costo real del día:**
+- ~$0.10-0.20 USD estimados en Anthropic API (medición exacta tras fix
+  de token logging)
+- 0 horas de infraestructura adicional (todo local)
+
+**Status vs plan:**
+- 5 días adelantados del plan de 30 días
+- Semana 2 terminará mañana probablemente (vs día 14 planeado)
