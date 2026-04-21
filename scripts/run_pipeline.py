@@ -79,6 +79,17 @@ _ALERT_RADIUS_M = 3_000.0
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _tok(acc: TokenAccumulator) -> dict:
+    """Return token/cost fields for log_processed_article **kwargs spread."""
+    return {
+        "total_tokens_input": acc.input_tokens,
+        "total_tokens_output": acc.output_tokens,
+        "total_tokens_cache_read": acc.cache_read_tokens,
+        "total_tokens_cache_creation": acc.cache_creation_tokens,
+        "cost_estimated_usd": acc.cost_usd,
+    }
+
+
 def _get_database_url() -> str:
     url = os.environ.get("DATABASE_URL", _DEFAULT_DB)
     # Coerce legacy postgres:// schemes
@@ -126,6 +137,7 @@ async def _process_article(
                 session, run_id, article,
                 StageReached.dedup,
                 FinalDecision.duplicate,
+                **_tok(accumulator),
             )
             await session.commit()
             stats["duplicate"] += 1
@@ -146,6 +158,7 @@ async def _process_article(
                 FinalDecision.pending,
                 triage_passed=None,
                 triage_reason="ANTHROPIC_API_KEY not set",
+                **_tok(accumulator),
             )
             await session.commit()
             stats["no_api_key"] += 1
@@ -165,6 +178,7 @@ async def _process_article(
             StageReached.triage,
             FinalDecision.pending if triage_ok else FinalDecision.irrelevant,
             triage_passed=triage_ok,
+            **_tok(accumulator),
         )
         await session.commit()
 
@@ -186,6 +200,7 @@ async def _process_article(
                 StageReached.deep_analysis,
                 FinalDecision.error,
                 error_message="deep_analyze returned None",
+                **_tok(accumulator),
             )
             await session.commit()
             stats["error"] += 1
@@ -245,6 +260,7 @@ async def _process_article(
                 StageReached.geolocation,
                 FinalDecision.no_geo,
                 **_geo_extra,
+                **_tok(accumulator),
             )
             await session.commit()
             stats["no_geo"] += 1
@@ -263,6 +279,7 @@ async def _process_article(
                 nearest_costco=nearest_name,
                 nearest_costco_dist_m=nearest_dist,
                 **_geo_extra,
+                **_tok(accumulator),
             )
             await session.commit()
             stats["out_of_radius"] += 1
@@ -289,6 +306,7 @@ async def _process_article(
                 session, run_id, article,
                 StageReached.notification,
                 FinalDecision.irrelevant,
+                **_tok(accumulator),
             )
             await session.commit()
             stats["below_threshold"] += 1
@@ -317,11 +335,7 @@ async def _process_article(
             session, run_id, article,
             StageReached.notification,
             FinalDecision.alerted,
-            total_tokens_input=accumulator.input_tokens,
-            total_tokens_output=accumulator.output_tokens,
-            total_tokens_cache_read=accumulator.cache_read_tokens,
-            total_tokens_cache_creation=accumulator.cache_creation_tokens,
-            cost_estimated_usd=accumulator.cost_usd,
+            **_tok(accumulator),
         )
         await session.commit()
         stats["alerted"] += 1
@@ -340,6 +354,7 @@ async def _process_article(
                 StageReached.error,
                 FinalDecision.error,
                 error_message=str(exc)[:1000],
+                **_tok(accumulator),
             )
             await session.commit()
         except Exception:
