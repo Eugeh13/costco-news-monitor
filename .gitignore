@@ -49,3 +49,14 @@ Thumbs.db
 # Archivos temporales
 *.tmp
 *.bak
+
+# Base de datos local (se regenera del pipeline)
+costco_motor.db
+costco_motor.db-shm
+costco_motor.db-wal
+
+# Config local de claudes tool
+.claudesrc
+
+# Screenshots con nombres autogenerados de macOS (nombres con espacios rompen URLs)
+docs/screenshots/Captura*.png
