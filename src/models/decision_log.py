@@ -91,7 +91,10 @@ class DecisionLog(Base, TimestampMixin):
     # ── Performance / cost tracking ───────────────────────────────────────────
     total_tokens_input: Mapped[int | None] = mapped_column(Integer)
     total_tokens_output: Mapped[int | None] = mapped_column(Integer)
+    total_tokens_cache_read: Mapped[int | None] = mapped_column(Integer)
+    total_tokens_cache_creation: Mapped[int | None] = mapped_column(Integer)
     total_latency_ms: Mapped[int | None] = mapped_column(Integer)
+    cost_estimated_usd: Mapped[float | None] = mapped_column(Float)
 
     # ── Error ─────────────────────────────────────────────────────────────────
     error_message: Mapped[str | None] = mapped_column(Text)

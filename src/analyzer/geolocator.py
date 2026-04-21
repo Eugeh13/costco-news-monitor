@@ -18,13 +18,16 @@ import asyncio
 import json
 import math
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import anthropic
 import httpx
 import structlog
 
 from src.analyzer.types import GeoLocation, GeolocationResult
+
+if TYPE_CHECKING:
+    from src.core.token_counter import TokenAccumulator
 
 logger = structlog.get_logger(__name__)
 
@@ -214,6 +217,7 @@ async def geolocate_incident(
     text: str,
     *,
     client: Optional[anthropic.AsyncAnthropic] = None,
+    accumulator: Optional["TokenAccumulator"] = None,
 ) -> Optional[GeolocationResult]:
     """
     Extract structured location from incident text using Claude tool_use.
@@ -237,6 +241,9 @@ async def geolocate_incident(
             tools=[_GEO_TOOL],
             tool_choice={"type": "tool", "name": "extract_incident_location"},
         )
+
+        if accumulator is not None:
+            accumulator.add_response(response)
 
         tool_use_block = next(
             (b for b in response.content if getattr(b, "type", None) == "tool_use"),

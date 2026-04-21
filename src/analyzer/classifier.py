@@ -11,12 +11,15 @@ System prompts use cache_control=ephemeral for ~90% reduction in repeated input 
 from __future__ import annotations
 
 import structlog
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import anthropic
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from src.analyzer.types import IncidentClassification, IncidentInput, IncidentType
+
+if TYPE_CHECKING:
+    from src.core.token_counter import TokenAccumulator
 
 logger = structlog.get_logger(__name__)
 
@@ -386,7 +389,11 @@ class Classifier:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    async def triage(self, incident: IncidentInput) -> bool:
+    async def triage(
+        self,
+        incident: IncidentInput,
+        accumulator: Optional["TokenAccumulator"] = None,
+    ) -> bool:
         """Quick triage with haiku. Returns True if the item passes to deep analysis."""
         user = (
             f"Title: {incident.title}\n"
@@ -404,6 +411,8 @@ class Classifier:
             tool=_TRIAGE_TOOL,
             max_tokens=256,
         )
+        if accumulator is not None:
+            accumulator.add_response(response)
         tool_input = self._extract_tool_input(response, "triage_result")
         if tool_input is None:
             logger.warning("triage: no tool_use block in response — treating as irrelevant")
@@ -419,7 +428,11 @@ class Classifier:
         )
         return is_relevant
 
-    async def deep_analyze(self, incident: IncidentInput) -> Optional[IncidentClassification]:
+    async def deep_analyze(
+        self,
+        incident: IncidentInput,
+        accumulator: Optional["TokenAccumulator"] = None,
+    ) -> Optional[IncidentClassification]:
         """Full analysis with sonnet. Returns IncidentClassification or None on failure."""
         user = (
             f"Title: {incident.title}\n\n"
@@ -439,6 +452,8 @@ class Classifier:
             tool=_CLASSIFY_TOOL,
             max_tokens=1024,
         )
+        if accumulator is not None:
+            accumulator.add_response(response)
         tool_input = self._extract_tool_input(response, "classify_incident")
         if tool_input is None:
             logger.error("deep_analyze: no tool_use block in response")

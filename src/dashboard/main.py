@@ -59,4 +59,6 @@ app.mount(
 
 # Routes
 from src.dashboard.routes import router  # noqa: E402 — import after app creation
+from src.dashboard.api import router as api_router  # noqa: E402
 app.include_router(router)
+app.include_router(api_router)
