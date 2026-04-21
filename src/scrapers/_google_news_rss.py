@@ -26,8 +26,10 @@ async def fetch_google_news(
     query: str,
     source_name: str,
     log,
+    max_age_hours: int = 3,
 ) -> list[RawArticle]:
-    url = _GNEWS_RSS.format(query=quote_plus(query))
+    full_query = f"{query} when:{max_age_hours}h"
+    url = _GNEWS_RSS.format(query=quote_plus(full_query))
     try:
         resp = await client.get(url, timeout=30)
         resp.raise_for_status()

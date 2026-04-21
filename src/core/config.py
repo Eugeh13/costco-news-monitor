@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     telegram_chat_id: str = Field(description="Telegram chat ID for alerts")
     log_level: LogLevel = LogLevel.INFO
     environment: Environment = Environment.dev
+    news_max_age_hours: int = Field(
+        default=3,
+        ge=1,
+        le=48,
+        description="Rechazar artículos más viejos que N horas",
+    )
 
     @field_validator("log_level", mode="before")
     @classmethod
