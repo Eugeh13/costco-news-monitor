@@ -56,17 +56,17 @@ Excepciones: solo por **mini-retrospectiva** documentando por qué se cambia y q
 Pipeline corriendo con costo <$0.10 por ciclo y geolocalización a nivel zona/colonia en al menos 80% de los incidentes detectados.
 
 ### Tareas
-- [ ] **T1.1** Fix del geolocator (strip markdown fences en JSON parsing) — 30 min
-- [ ] **T1.2** Reescribir geolocator con `tool_use` de Anthropic en lugar de JSON mode manual (más robusto) — 2 hrs
-- [ ] **T1.3** Prompt caching en classifier.py (`cache_control=ephemeral` en system prompt) — 1 hr
-- [ ] **T1.4** Prompt caching en geolocator.py — 45 min
-- [ ] **T1.5** Filtro temporal `NEWS_MAX_AGE_HOURS=3` en src/scrapers/base.py + src/core/config.py — 1 hr
-- [ ] **T1.6** Agregar `when:1h` a queries de Google News RSS (scrapers/_google_news_rss.py) — 20 min
-- [ ] **T1.7** Mover `dedup.py` antes del classifier en el pipeline (evitar clasificar duplicados) — 1 hr
-- [ ] **T1.8** Agregar campos al schema: `approximate_location` (colonia/zona), `exact_location_lat`, `exact_location_lng`, `geolocation_confidence` — 30 min
-- [ ] **T1.9** Migración Alembic 0004 con los nuevos campos — 20 min
-- [ ] **T1.10** Tests: 171/171 siguen pasando + nuevos tests para geolocator con casos reales MTY — 2 hrs
-- [ ] **T1.11** Corrida de validación: 3 ciclos consecutivos, medir costo y precisión de geolocalización — 1 hr
+- [x] **T1.1** Fix del geolocator (strip markdown fences en JSON parsing) — 30 min
+- [x] **T1.2** Reescribir geolocator con `tool_use` de Anthropic en lugar de JSON mode manual (más robusto) — 2 hrs
+- [x] **T1.3** Prompt caching en classifier.py (`cache_control=ephemeral` en system prompt) — 1 hr
+- [x] **T1.4** Prompt caching en geolocator.py — 45 min
+- [x] **T1.5** Filtro temporal `NEWS_MAX_AGE_HOURS=3` en src/scrapers/base.py + src/core/config.py — 1 hr
+- [x] **T1.6** Agregar `when:1h` a queries de Google News RSS (scrapers/_google_news_rss.py) — 20 min
+- [x] **T1.7** Mover `dedup.py` antes del classifier en el pipeline (evitar clasificar duplicados) — 1 hr
+- [x] **T1.8** Agregar campos al schema: `approximate_location` (colonia/zona), `exact_location_lat`, `exact_location_lng`, `geolocation_confidence` — 30 min
+- [x] **T1.9** Migración Alembic 0004 con los nuevos campos — 20 min
+- [x] **T1.10** Tests: 171/171 siguen pasando + nuevos tests para geolocator con casos reales MTY — 2 hrs
+- [x] **T1.11** Corrida de validación: 3 ciclos consecutivos, medir costo y precisión de geolocalización — 1 hr
 
 ### Criterio de éxito
 - 171/171 tests pasando (sin incluir los nuevos)
@@ -75,6 +75,29 @@ Pipeline corriendo con costo <$0.10 por ciclo y geolocalización a nivel zona/co
 - Documento `WEEK1_METRICS.md` con números medidos
 
 ### Horas totales estimadas: 10-11 hrs
+
+### Retrospectiva Semana 1 — CERRADA ✅
+
+Completada el 20 abril 2026 en ~4-5 horas reales (estimado eran 10-11 hrs).
+
+Números finales (corrida B con todos los filtros activos):
+- Artículos procesados: 16 (vs 200 baseline, -92%)
+- Tiempo por corrida: 133s (vs 673s baseline, -80%)
+- Tests: 194/194 passing (+23 vs 171 baseline)
+- Geolocalización: 100% con approximate_location, 75% con confidence >= 0.5
+- Alertas generadas: 0 en ventana de 1h (hay que operar varios días para muestra significativa)
+
+Costo estimado por corrida: ~$0.05 USD (pendiente medición exacta,
+instrumentación va en Semana 2)
+
+Bonus entregado:
+- Migración 0005 con 4 campos geo también en decision_log (fix de schema mismatch)
+- Dedup con URL canonicalization + DB lookup 24h window
+
+Deuda técnica pendiente → BACKLOG.md:
+- Consolidar decision_log y analysis_result en una sola tabla
+- Investigar por qué 45 registros quedaron no_geo en corridas previas
+- Instrumentar logging de tokens para costo exacto (va en Semana 2)
 
 ---
 

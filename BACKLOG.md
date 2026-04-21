@@ -81,6 +81,7 @@
 - [ ] Rate limiting en la API pública (si se expone)
 - [ ] CDN para assets estáticos
 - [ ] Logs centralizados (Loki/Datadog)
+- [ ] Decidir en Semana 3 si necesitamos frontend build toolchain real (Vite/esbuild) o seguimos con CDN de Tailwind/Alpine/Leaflet
 
 ---
 
@@ -113,7 +114,8 @@
 - [ ] Revisión de seguridad: ¿el endpoint `/api/incidents` debería requerir auth?
 - [ ] Configuración de logging estructurado consistente en todos los módulos
 - [ ] Documentación interna de cómo correr el proyecto localmente desde cero
-- [ ] [DEUDA TÉCNICA] Consolidar decision_log y analysis_result en una sola tabla de resultados (hoy divergidas por legacy)
+- [ ] [DEUDA TÉCNICA Semana 1] Consolidar decision_log y analysis_result en una sola tabla de resultados (hoy divergidas por legacy)
+- [ ] Investigar 45 registros históricos en no_geo (corridas de Op C)
 
 ---
 
