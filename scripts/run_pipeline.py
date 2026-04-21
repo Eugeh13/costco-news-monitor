@@ -54,6 +54,7 @@ from src.analyzer.geolocator import (
 from src.analyzer.types import IncidentInput
 from src.core.decision_logger import create_run, log_processed_article
 from src.core.database import Base
+from src.core.token_counter import TokenAccumulator
 from src.models.decision_log import FinalDecision, StageReached
 from src.notifier.telegram import TelegramClient
 from src.scrapers import ALL_SCRAPERS, RawArticle
@@ -106,6 +107,7 @@ async def _process_article(
 ) -> None:
     """Full pipeline for a single article; logs every stage to decision_log."""
     url = article.url
+    accumulator = TokenAccumulator()
 
     # ── Stage: scraped ────────────────────────────────────────────────────────
     await log_processed_article(
@@ -157,7 +159,7 @@ async def _process_article(
             url=url,
         )
 
-        triage_ok = await classifier.triage(incident_input)
+        triage_ok = await classifier.triage(incident_input, accumulator=accumulator)
         await log_processed_article(
             session, run_id, article,
             StageReached.triage,
@@ -177,7 +179,7 @@ async def _process_article(
         )
         await session.commit()
 
-        classification = await classifier.deep_analyze(incident_input)
+        classification = await classifier.deep_analyze(incident_input, accumulator=accumulator)
         if classification is None:
             await log_processed_article(
                 session, run_id, article,
@@ -207,7 +209,7 @@ async def _process_article(
         await session.commit()
 
         text = f"{article.title} {article.content_snippet}"
-        geo_result = await geolocate_incident(text)
+        geo_result = await geolocate_incident(text, accumulator=accumulator)
         place_names: list[str] = []
         if geo_result:
             if geo_result.exact_address:
@@ -315,6 +317,11 @@ async def _process_article(
             session, run_id, article,
             StageReached.notification,
             FinalDecision.alerted,
+            total_tokens_input=accumulator.input_tokens,
+            total_tokens_output=accumulator.output_tokens,
+            total_tokens_cache_read=accumulator.cache_read_tokens,
+            total_tokens_cache_creation=accumulator.cache_creation_tokens,
+            cost_estimated_usd=accumulator.cost_usd,
         )
         await session.commit()
         stats["alerted"] += 1
