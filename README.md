@@ -284,3 +284,8 @@ Uso privado - Costco Monterrey
 **Powered by OpenAI GPT-4o-mini**
 
 # Redeploy trigger
+
+## Workers activos
+
+- **claude-1** — listo para tareas (validado el 21 abril 2026)
+- **claude-2** — listo para tareas (validado el 21 abril 2026)
