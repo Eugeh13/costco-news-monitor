@@ -3,7 +3,9 @@
 **Fecha:** 21 abril 2026  
 **Worker:** integrator  
 **Rama:** v2-rewrite (commit directo)  
-**Commit:** pendiente verificación post-push
+**Commit:** `322f58d` — verificado en origin  
+**`git log origin/v2-rewrite --oneline -1`:** `322f58d docs(integrator): OUTPUT_006 merge workers governance validation`  
+**URL README:** https://github.com/Eugeh13/costco-news-monitor/blob/v2-rewrite/README.md (HTTP 200 ✓)
 
 ---
 
