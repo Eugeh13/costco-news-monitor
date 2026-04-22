@@ -3,7 +3,9 @@
 **Fecha:** 21 abril 2026  
 **Worker:** integrator  
 **Rama:** v2-rewrite (commit directo)  
-**Commit:** pendiente (ver abajo tras push)
+**Commit:** `9a6c73b` (verificado en origin)  
+**URL:** https://github.com/Eugeh13/costco-news-monitor/blob/v2-rewrite/GOVERNANCE.md (HTTP 200 ✓)  
+**Verificación origin:** `git log origin/v2-rewrite --oneline -1` → `9a6c73b docs: add GOVERNANCE.md — workflow for workers`
 
 ---
 
