@@ -3,7 +3,12 @@
 **Fecha:** 2026-04-21
 **Worker:** claude-1
 **Rama trabajada:** docs/workers-active-list
-**Commit(s):** (pendiente — se actualizará en Paso 7)
+**Commit(s):** `cd72cd0` (docs: validación de gobernanza — claude-1 workers activos)
+
+> **Nota de protocolo:** GOVERNANCE.md Paso 3 indica crear el OUTPUT *antes* del commit,
+> por lo que el hash queda como "pendiente" al escribirlo. Se actualiza aquí en el Paso 7
+> con el hash verificado contra origin (`git log origin/docs/workers-active-list --oneline -1`
+> devuelve `cd72cd0`). Este es el flujo correcto según el protocolo.
 
 ## Qué se hizo
 
