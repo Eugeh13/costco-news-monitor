@@ -16,6 +16,7 @@ import os
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
+from dotenv import load_dotenv
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -23,9 +24,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-_DATABASE_URL = os.getenv(
-    "DATABASE_URL", "sqlite+aiosqlite:///./costco_motor.db"
-)
+load_dotenv()
+
+_raw_url = os.getenv("DATABASE_URL", "")
+if _raw_url:
+    _raw_url = _raw_url.strip().strip('"\'').lstrip('\ufeff\u200b')
+
+_DATABASE_URL = _raw_url or "sqlite+aiosqlite:///./costco_motor.db"
 
 _connect_args: dict = {}
 if _DATABASE_URL.startswith("sqlite"):

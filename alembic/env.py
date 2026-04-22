@@ -4,6 +4,7 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -12,6 +13,8 @@ from alembic import context
 
 # Ensure src/ is importable from any working directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+load_dotenv()
 
 from src.core.database import Base  # noqa: E402
 import src.models  # noqa: E402, F401  — side-effect import registers all models
@@ -23,6 +26,8 @@ if config.config_file_name is not None:
 
 # Override sqlalchemy.url from env so we never commit credentials to alembic.ini
 database_url = os.environ.get("DATABASE_URL", "")
+if database_url:
+    database_url = database_url.strip().strip('"\'').lstrip('\ufeff\u200b')
 if database_url:
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
