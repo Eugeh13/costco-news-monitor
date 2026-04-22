@@ -1,13 +1,14 @@
 [phases.setup]
-nixPkgs = ['...', 'python312', 'gcc']
+nixPkgs = ['python311', 'gcc']
+
+[phases.install]
 cmds = [
     'pip install --upgrade pip',
-    'pip install -r requirements.txt',
-    'playwright install chromium || true',
+    'pip install -e .',
 ]
 
 [phases.build]
-cmds = ['echo "Build complete"']
+cmds = ['echo "Build complete for costco-news-monitor v2"']
 
 [start]
-cmd = 'python server.py'
+cmd = 'python3.11 scheduler.py'
