@@ -1,85 +1,57 @@
+#!/usr/bin/env python3
 """
-Smart scheduler — runs the monitoring pipeline with dynamic intervals.
-
-- If no changes → wait longer (up to max_poll_interval)
-- If new content → reset to min_poll_interval
-- Night pause (23:00 - 06:00 CST)
+Scheduler para costco-news-monitor v2 en Railway.
+Ejecuta el pipeline cada 2 horas en loop infinito.
 """
+import asyncio
+import logging
+import sys
+from datetime import datetime
+from pathlib import Path
 
-import time
-from datetime import datetime, timedelta
+# Logging a stdout para que Railway lo capture
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    stream=sys.stdout,
+)
+log = logging.getLogger(__name__)
 
-import pytz
+# Asegurar que el proyecto sea importable
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.config.settings import settings
-from main import build_pipeline
-
-CENTRAL_TZ = pytz.timezone("America/Chicago")
-
-
-def is_night_time() -> bool:
-    hour = datetime.now(CENTRAL_TZ).hour
-    return hour >= settings.night_pause_start or hour < settings.night_pause_end
+INTERVAL_SECONDS = 7200  # 2 horas
 
 
-def main():
-    min_secs = settings.min_poll_interval_minutes * 60
-    max_secs = settings.max_poll_interval_minutes * 60
-    step_increase = 2 * 60
-
-    print(f"""
-╔═══════════════════════════════════════════════════════════════════╗
-║  Costco News Monitor — Smart Scheduler                           ║
-║  Intervalo: {settings.min_poll_interval_minutes}-{settings.max_poll_interval_minutes} min | Pausa nocturna: {settings.night_pause_start}:00 - {settings.night_pause_end}:00 CST        ║
-╚═══════════════════════════════════════════════════════════════════╝
-""")
-
-    pipeline = build_pipeline()
-    current_interval = min_secs
-
+async def run_pipeline_once():
+    """Ejecuta una corrida del pipeline. Captura excepciones para no matar el scheduler."""
+    log.info("=== Pipeline run starting ===")
     try:
-        while True:
-            now = datetime.now(CENTRAL_TZ)
+        from scripts.run_pipeline import main as run_pipeline_main
+        await run_pipeline_main()
+        log.info("=== Pipeline run completed successfully ===")
+    except Exception as e:
+        log.exception("Pipeline run failed: %s", e)
 
-            # Night mode
-            if is_night_time():
-                wake_hour = settings.night_pause_end
-                wake_time = now.replace(hour=wake_hour, minute=0, second=0)
-                if now.hour >= settings.night_pause_start:
-                    wake_time += timedelta(days=1)
 
-                wait_secs = (wake_time - now).total_seconds()
-                h, m = int(wait_secs // 3600), int((wait_secs % 3600) // 60)
-                print(f"\n🌙 Modo nocturno — {h}h {m}min hasta {wake_time.strftime('%H:%M')}")
-                time.sleep(wait_secs)
-                continue
+async def scheduler_loop():
+    """Loop infinito que corre el pipeline cada INTERVAL_SECONDS."""
+    log.info("Scheduler starting. Interval: %ss (%.1f hours)", INTERVAL_SECONDS, INTERVAL_SECONDS / 3600)
 
-            # Run pipeline
-            print(f"\n{'='*70}")
-            print(f"🔔 {now.strftime('%Y-%m-%d %H:%M:%S %Z')} | Intervalo: {current_interval // 60}min")
-            print(f"{'='*70}")
+    while True:
+        start = datetime.utcnow()
+        await run_pipeline_once()
 
-            try:
-                pipeline.run_once()
-
-                # Adjust interval
-                if pipeline._hasher.consecutive_no_change > 0:
-                    current_interval = min(current_interval + step_increase, max_secs)
-                    print(f"\n⏱️  Sin cambios → próximo: {current_interval // 60}min")
-                else:
-                    current_interval = min_secs
-                    print(f"\n⏱️  Contenido nuevo → intervalo: {current_interval // 60}min")
-
-            except Exception as e:
-                print(f"\n⚠️ Error: {e}")
-                import traceback
-                traceback.print_exc()
-
-            time.sleep(current_interval)
-
-    except KeyboardInterrupt:
-        print("\n\n🛑 Detenido por el usuario")
+        elapsed = (datetime.utcnow() - start).total_seconds()
+        sleep_time = max(0, INTERVAL_SECONDS - elapsed)
+        log.info("Next run in %ss (%.1f hours). Sleeping...", int(sleep_time), sleep_time / 3600)
+        await asyncio.sleep(sleep_time)
 
 
 if __name__ == "__main__":
-    main()
+    log.info("costco-news-monitor v2 scheduler starting up")
+    try:
+        asyncio.run(scheduler_loop())
+    except KeyboardInterrupt:
+        log.info("Scheduler interrupted, shutting down")
+        sys.exit(0)
