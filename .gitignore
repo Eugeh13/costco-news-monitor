@@ -34,6 +34,7 @@ processed_news.txt
 # Variables de entorno (NO subir credenciales)
 .env
 .env.local
+.env.backup
 
 # IDEs
 .vscode/
