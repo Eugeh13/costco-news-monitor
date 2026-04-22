@@ -289,3 +289,4 @@ Uso privado - Costco Monterrey
 
 - **claude-1** — listo para tareas (validado el 21 abril 2026)
 - **claude-2** — listo para tareas (validado el 21 abril 2026)
+- **claude-3** — listo para tareas (validado el 21 abril 2026)
