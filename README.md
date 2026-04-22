@@ -288,3 +288,4 @@ Uso privado - Costco Monterrey
 ## Workers activos
 
 - **claude-1** — listo para tareas (validado el 21 abril 2026)
+- **claude-2** — listo para tareas (validado el 21 abril 2026)
