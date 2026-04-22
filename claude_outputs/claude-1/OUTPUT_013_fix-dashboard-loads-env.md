@@ -3,7 +3,7 @@
 **Fecha:** 2026-04-22
 **Worker:** claude-1
 **Rama trabajada:** fix/dashboard-loads-env
-**Commit(s):** pendiente
+**Commit(s):** `7a81a33` (fix(dashboard): load .env automatically and sanitize DATABASE_URL)
 
 ## Problema
 
@@ -80,4 +80,11 @@ python3 -m uvicorn src.dashboard.main:app --host 0.0.0.0 --port 8000
 
 ## Commit hash verificado
 
-pendiente
+```
+git log origin/fix/dashboard-loads-env --oneline -1
+7a81a33 fix(dashboard): load .env automatically and sanitize DATABASE_URL
+```
+
+## URL de la rama
+
+https://github.com/Eugeh13/costco-news-monitor/tree/fix/dashboard-loads-env
