@@ -11,7 +11,11 @@ import asyncpg
 
 async def fix_alembic_version_column():
     load_dotenv()
-    url = os.environ['DATABASE_URL'].replace('postgresql+asyncpg://', 'postgresql://')
+    raw = os.environ['DATABASE_URL'].strip().strip('"\'').lstrip('\ufeff\u200b')
+    url = raw.replace('postgresql+asyncpg://', 'postgresql://', 1)
+    if not url.startswith(('postgresql://', 'postgres://')):
+        url = raw.replace('postgres+asyncpg://', 'postgresql://', 1)
+    print(f"[diag] scheme usado: {url.split('://')[0]!r}")
     conn = await asyncpg.connect(url, timeout=10)
 
     # Si la tabla existe con VARCHAR(32), alterarla
