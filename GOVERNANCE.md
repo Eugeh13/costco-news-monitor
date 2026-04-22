@@ -192,7 +192,8 @@ Si cualquiera de estas condiciones ocurre, **parar y auditar** antes de continua
 ## 7. Anti-patrones prohibidos
 
 - ❌ `git add .` o `git add -A` sin revisar `git status` primero
-- ❌ Reportar "listo" o "terminado" sin incluir el commit hash
+- ❌ Reportar "listo" o "terminado" sin incluir el commit hash  
+❌ Mencionar el hash sin pegar el output literal de `git log origin/<rama> --oneline -1` — decir el hash no es lo mismo que mostrar que origin lo confirma
 - ❌ `git push` sin verificar con `git log origin/<rama> --oneline -1` que llegó
 - ❌ Asumir que "crear un archivo" en la conversación de Claude guarda el archivo en disco del usuario — siempre verificar con `ls -la`
 - ❌ Committear binarios grandes (imágenes > 1MB, `.db` files, videos)
