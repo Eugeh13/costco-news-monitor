@@ -116,6 +116,8 @@ El reporte debe incluir:
 - **Confirmación explícita** de que `git log origin` muestra el commit
 - **Issues conocidos** si los hay
 
+**Regla antes de enviar:** busca la palabra `pendiente` en tu OUTPUT y en tu reporte. Si aparece en cualquier campo de hash, URL o verificación, el trabajo no está completo — ejecuta los pasos que faltan antes de reportar.
+
 ❌ No reportar "listo" sin el hash y la confirmación de origin.
 
 ---
