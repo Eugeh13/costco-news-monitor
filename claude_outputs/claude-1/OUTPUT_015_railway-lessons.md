@@ -3,7 +3,7 @@
 **Fecha:** 2026-04-23
 **Worker:** claude-1
 **Rama trabajada:** docs/railway-lessons
-**Commit(s):** pendiente
+**Commit(s):** `ce5af0f` (docs: add Railway + PostgreSQL lessons learned (avoid 6hr bugs in future projects))
 
 ## Qué se hizo
 
@@ -32,4 +32,11 @@ No aplica (documento de texto).
 
 ## Commit hash verificado
 
-pendiente
+```
+git log origin/docs/railway-lessons --oneline -1
+ce5af0f docs: add Railway + PostgreSQL lessons learned (avoid 6hr bugs in future projects)
+```
+
+## URL de la rama
+
+https://github.com/Eugeh13/costco-news-monitor/tree/docs/railway-lessons
