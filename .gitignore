@@ -35,6 +35,7 @@ processed_news.txt
 .env
 .env.local
 .env.backup
+.env.backup.*
 
 # IDEs
 .vscode/
