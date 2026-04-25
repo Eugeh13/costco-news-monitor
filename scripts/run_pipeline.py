@@ -55,6 +55,7 @@ from src.analyzer.types import IncidentInput
 from src.core.decision_logger import create_run, log_processed_article
 from src.core.database import Base
 from src.core.token_counter import TokenAccumulator
+from src.core.utils import mask_db_url
 from src.models.decision_log import FinalDecision, StageReached
 from src.notifier.telegram import TelegramClient
 from src.scrapers import ALL_SCRAPERS, RawArticle
@@ -366,7 +367,7 @@ async def _process_article(
 
 async def main() -> None:
     db_url = _get_database_url()
-    log.info("pipeline.start", db=db_url.split("///")[-1])
+    log.info("pipeline.start", db=mask_db_url(db_url))
 
     engine = create_async_engine(db_url, echo=False)
     await _ensure_schema(engine)
