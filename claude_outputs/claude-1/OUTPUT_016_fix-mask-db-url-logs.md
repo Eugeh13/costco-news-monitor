@@ -3,7 +3,7 @@
 **Fecha:** 2026-04-25
 **Worker:** claude-1
 **Rama trabajada:** fix/mask-db-url-in-logs
-**Commit(s):** pendiente
+**Commit(s):** `868fb12` (fix(security): mask DATABASE_URL password in logs)
 
 ## Problema
 
@@ -74,4 +74,11 @@ grep -rn "DATABASE_URL|database_url|db_url|db=" src/ scripts/ | grep -i "log|pri
 
 ## Commit hash verificado
 
-pendiente
+```
+git log origin/fix/mask-db-url-in-logs --oneline -1
+868fb12 fix(security): mask DATABASE_URL password in logs
+```
+
+## URL de la rama
+
+https://github.com/Eugeh13/costco-news-monitor/tree/fix/mask-db-url-in-logs
