@@ -3,13 +3,16 @@ Geolocation helpers for the Costco Monterrey monitoring system.
 
 geolocate_incident() — primary function: tool_use LLM extraction with prompt caching
 extract_locations()  — backward-compat wrapper, returns list[str] for pipeline
-geocode()            — Nominatim (OpenStreetMap) via httpx, 1 req/s rate-limited
+geocode()            — Google Geocoding API via httpx, Monterrey-biased
 distance_to_costcos() — haversine distances in metres to all 3 stores
 is_within_radius()   — True if any store is within the given radius
 
 Bug fix (T1.2): replaces brittle JSON mode (failed on ```json...``` fences) with
 tool_use forcing a structured response block — eliminates json.loads entirely.
 Prompt caching (T1.4): system prompt carries cache_control=ephemeral.
+Geocoder (T2.x): replaced Nominatim with Google Geocoding API for higher precision
+in Mexican addresses. Results with location_type=APPROXIMATE + partial_match are
+rejected to avoid centroid-level misses.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import os
 import time
 from typing import TYPE_CHECKING, Optional
 
@@ -38,12 +42,9 @@ COSTCO_LOCATIONS: dict[str, tuple[float, float]] = {
     "Costco Valle Oriente":      (25.6457, -100.3072),
 }
 
-_NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search"
-_NOMINATIM_UA = "CostcoMonterreyMonitor/2.0 (ops@costco-mty.example)"
-
-# Module-level rate-limiter state
-_last_geocode_t: float = 0.0
-_geocode_lock: asyncio.Lock = asyncio.Lock()
+_GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+# Bounding box for Área Metropolitana de Monterrey — biases results toward ZMM
+_MTY_BOUNDS = "25.5,-100.5|25.9,-100.1"
 
 # ── Tool definition (T1.2) ────────────────────────────────────────────────────
 
@@ -295,7 +296,7 @@ async def extract_locations(
     """
     Backward-compatible wrapper: calls geolocate_incident and returns address strings.
 
-    Used by run_pipeline.py to feed strings into geocode() for Nominatim lookup.
+    Used by run_pipeline.py to feed strings into geocode() for Google Geocoding lookup.
     """
     result = await geolocate_incident(text, client=client)
     if result is None:
@@ -317,49 +318,98 @@ async def geocode(
     address: str,
     *,
     http_client: Optional[httpx.AsyncClient] = None,
+    api_key: Optional[str] = None,
 ) -> Optional[GeoLocation]:
     """
-    Geocode an address string via Nominatim.
+    Geocode an address string via Google Geocoding API.
 
-    Enforces a 1 req/s rate limit using a module-level asyncio.Lock.
-    Returns None if Nominatim returns no results or on HTTP error.
+    Biases results toward Área Metropolitana de Monterrey via the ``bounds``
+    parameter. Rejects results flagged as APPROXIMATE + partial_match to avoid
+    centroid-level misses that plagued the Nominatim implementation.
+
+    Returns None on ZERO_RESULTS, non-OK status, or HTTP/parse error.
+    One transparent retry on transient HTTP errors.
     """
-    global _last_geocode_t
-
-    async with _geocode_lock:
-        now = time.monotonic()
-        gap = 1.0 - (now - _last_geocode_t)
-        if gap > 0:
-            await asyncio.sleep(gap)
-        _last_geocode_t = time.monotonic()
+    key = api_key or os.environ.get("GOOGLE_MAPS_API_KEY", "")
+    if not key:
+        logger.warning("geocode: GOOGLE_MAPS_API_KEY not set — skipping geocode")
+        return None
 
     params = {
-        "q": f"{address}, Monterrey, Nuevo León, México",
-        "format": "json",
-        "limit": "1",
-        "countrycodes": "mx",
+        "address": f"{address}, Monterrey, Nuevo León, México",
+        "key": key,
+        "region": "mx",
+        "bounds": _MTY_BOUNDS,
+        "language": "es",
     }
-    headers = {"User-Agent": _NOMINATIM_UA}
 
     owns_client = http_client is None
     _http = http_client or httpx.AsyncClient(timeout=10.0)
-    try:
-        resp = await _http.get(_NOMINATIM_BASE, params=params, headers=headers)
+
+    async def _attempt() -> Optional[GeoLocation]:
+        resp = await _http.get(_GOOGLE_GEOCODE_URL, params=params)
         resp.raise_for_status()
         data = resp.json()
-        if not data:
-            logger.debug("geocode: no Nominatim results for %r", address)
+
+        status = data.get("status", "")
+        if status == "ZERO_RESULTS":
+            logger.info("geocoder.no_result", address=address, status=status)
             return None
-        hit = data[0]
+        if status != "OK":
+            logger.warning("geocoder.error", address=address, status=status)
+            return None
+
+        results = data.get("results", [])
+        if not results:
+            logger.info("geocoder.no_result", address=address, status="empty_results")
+            return None
+
+        hit = results[0]
+        location_type = hit.get("geometry", {}).get("location_type", "")
+        partial_match = hit.get("partial_match", False)
+
+        # Reject low-precision results: centroid of a large area + partial text match
+        if location_type == "APPROXIMATE" and partial_match:
+            logger.info(
+                "geocoder.no_result",
+                address=address,
+                reason="APPROXIMATE+partial_match",
+                location_type=location_type,
+            )
+            return None
+
+        loc = hit["geometry"]["location"]
+        formatted = hit.get("formatted_address", address)
+        logger.info("geocoder.success", address=address, formatted=formatted, location_type=location_type)
         return GeoLocation(
-            lat=float(hit["lat"]),
-            lon=float(hit["lon"]),
-            address=hit.get("display_name", address),
-            confidence=min(1.0, float(hit.get("importance", 0.5))),
+            lat=float(loc["lat"]),
+            lon=float(loc["lng"]),
+            address=formatted,
+            confidence=_location_type_confidence(location_type),
         )
+
+    try:
+        return await _attempt()
+    except httpx.TransportError as exc:
+        logger.warning("geocoder.error", address=address, error=str(exc), retry=True)
+        try:
+            return await _attempt()
+        except (httpx.HTTPError, KeyError, ValueError, json.JSONDecodeError) as exc2:
+            logger.warning("geocoder.error", address=address, error=str(exc2), retry=False)
+            return None
     except (httpx.HTTPError, KeyError, ValueError, json.JSONDecodeError) as exc:
-        logger.warning("geocode error for %r: %s", address, exc)
+        logger.warning("geocoder.error", address=address, error=str(exc))
         return None
     finally:
         if owns_client:
             await _http.aclose()
+
+
+def _location_type_confidence(location_type: str) -> float:
+    """Map Google location_type to a confidence score in [0, 1]."""
+    return {
+        "ROOFTOP": 1.0,
+        "RANGE_INTERPOLATED": 0.85,
+        "GEOMETRIC_CENTER": 0.7,
+        "APPROXIMATE": 0.5,
+    }.get(location_type, 0.5)

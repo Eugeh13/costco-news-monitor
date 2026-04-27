@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Optional
 
 from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,6 +32,7 @@ class Settings(BaseSettings):
         description="PostgreSQL async DSN — must use postgresql+asyncpg:// scheme"
     )
     anthropic_api_key: str = Field(description="Anthropic API key")
+    google_maps_api_key: Optional[str] = Field(default=None, description="Google Maps Geocoding API key")
     telegram_bot_token: str = Field(description="Telegram bot token")
     telegram_chat_id: str = Field(description="Telegram chat ID for alerts")
     log_level: LogLevel = LogLevel.INFO
