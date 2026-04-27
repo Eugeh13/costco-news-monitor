@@ -3,7 +3,7 @@
 **Fecha:** 2026-04-26
 **Worker:** claude-1
 **Rama trabajada:** feat/geocoder-google-maps
-**Commit(s):** pendiente
+**Commit(s):** `5a67805` (feat(geocoder): replace Nominatim with Google Geocoding API)
 
 ## Problema
 
@@ -69,4 +69,11 @@ Pipeline 72h produjo 28 incidentes con 0 dentro del radio de 3 km. Causa: Nomina
 
 ## Commit hash verificado
 
-pendiente
+```
+git log origin/feat/geocoder-google-maps --oneline -1
+5a67805 feat(geocoder): replace Nominatim with Google Geocoding API
+```
+
+## URL de la rama
+
+https://github.com/Eugeh13/costco-news-monitor/tree/feat/geocoder-google-maps
