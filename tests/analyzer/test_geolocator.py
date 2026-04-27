@@ -53,36 +53,46 @@ def test_distance_all_positive():
     assert all(v > 0 for v in dists.values())
 
 
-# ── geocode (mocked Nominatim) ────────────────────────────────────────────────
+# ── geocode (mocked Google Geocoding API) ─────────────────────────────────────
 
-def _make_nominatim_response(lat="25.6455", lon="-100.3255", name="Av Lázaro Cárdenas, San Pedro") -> MagicMock:
+def _make_google_response(lat="25.6455", lon="-100.3255", name="Av Lázaro Cárdenas, San Pedro") -> MagicMock:
     resp = MagicMock(spec=httpx.Response)
     resp.status_code = 200
     resp.raise_for_status = MagicMock()
-    resp.json = MagicMock(return_value=[{"lat": lat, "lon": lon, "display_name": name, "importance": "0.7"}])
+    resp.json = MagicMock(return_value={
+        "status": "OK",
+        "results": [{
+            "formatted_address": name,
+            "geometry": {
+                "location": {"lat": float(lat), "lng": float(lon)},
+                "location_type": "RANGE_INTERPOLATED",
+            },
+            "partial_match": False,
+        }],
+    })
     return resp
 
 
 async def test_geocode_success():
     mock_http = AsyncMock(spec=httpx.AsyncClient)
-    mock_http.get = AsyncMock(return_value=_make_nominatim_response())
+    mock_http.get = AsyncMock(return_value=_make_google_response())
 
-    result = await geocode("Av Lázaro Cárdenas", http_client=mock_http)
+    result = await geocode("Av Lázaro Cárdenas", http_client=mock_http, api_key="test-key")
     assert result is not None
     assert abs(result.lat - 25.6455) < 0.001
-    assert result.confidence == pytest.approx(0.7, abs=0.01)
+    assert result.confidence == pytest.approx(0.85, abs=0.01)  # RANGE_INTERPOLATED → 0.85
 
 
 async def test_geocode_empty_results():
     resp = MagicMock(spec=httpx.Response)
     resp.status_code = 200
     resp.raise_for_status = MagicMock()
-    resp.json = MagicMock(return_value=[])
+    resp.json = MagicMock(return_value={"status": "ZERO_RESULTS", "results": []})
 
     mock_http = AsyncMock(spec=httpx.AsyncClient)
     mock_http.get = AsyncMock(return_value=resp)
 
-    result = await geocode("Calle que no existe", http_client=mock_http)
+    result = await geocode("Calle que no existe", http_client=mock_http, api_key="test-key")
     assert result is None
 
 
@@ -90,7 +100,7 @@ async def test_geocode_http_error():
     mock_http = AsyncMock(spec=httpx.AsyncClient)
     mock_http.get = AsyncMock(side_effect=httpx.ConnectError("timeout"))
 
-    result = await geocode("anything", http_client=mock_http)
+    result = await geocode("anything", http_client=mock_http, api_key="test-key")
     assert result is None
 
 
