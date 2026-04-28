@@ -32,7 +32,8 @@ class Settings(BaseSettings):
         description="PostgreSQL async DSN — must use postgresql+asyncpg:// scheme"
     )
     anthropic_api_key: str = Field(description="Anthropic API key")
-    google_maps_api_key: Optional[str] = Field(default=None, description="Google Maps Geocoding API key")
+    google_maps_api_key: Optional[str] = Field(default=None, description="Google Maps Geocoding API key (server-side, no HTTP referrer restriction)")
+    google_maps_browser_key: Optional[str] = Field(default=None, description="Google Maps JavaScript API key (browser-side, HTTP referrer restricted)")
     telegram_bot_token: str = Field(description="Telegram bot token")
     telegram_chat_id: str = Field(description="Telegram chat ID for alerts")
     log_level: LogLevel = LogLevel.INFO

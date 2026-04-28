@@ -22,6 +22,9 @@ class TestMapIndex:
         assert "Cumbres" in body
         assert "Valle Oriente" in body
 
-    async def test_index_has_leaflet_cdn_loaded(self, client: AsyncClient):
+    async def test_index_has_google_maps_cdn_or_error_fallback(self, client: AsyncClient):
         body = (await client.get("/")).text
-        assert "unpkg.com/leaflet" in body
+        # Either Google Maps is loaded (key configured) or the error fallback is rendered
+        has_google_maps = "maps.googleapis.com/maps/api/js" in body
+        has_error_fallback = "GOOGLE_MAPS_BROWSER_KEY" in body
+        assert has_google_maps or has_error_fallback
