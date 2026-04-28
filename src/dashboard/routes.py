@@ -10,6 +10,7 @@ GET  /health
 
 from __future__ import annotations
 
+import os
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Form, Query, Request
@@ -58,7 +59,11 @@ def _decision_class(decision: str) -> str:
 
 @router.get("/", response_class=HTMLResponse)
 async def map_index(request: Request):
-    return TEMPLATES.TemplateResponse(request, "index.html", {})
+    return TEMPLATES.TemplateResponse(
+        request,
+        "index.html",
+        {"maps_browser_key": os.environ.get("GOOGLE_MAPS_BROWSER_KEY")},
+    )
 
 
 # ── GET /decisions — decision log table ──────────────────────
