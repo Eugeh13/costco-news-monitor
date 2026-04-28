@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Scheduler para costco-news-monitor v2 en Railway.
-Ejecuta el pipeline cada 2 horas en loop infinito.
+Ejecuta el pipeline cada 6 horas en loop infinito.
 """
 import asyncio
 import logging
@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 # Asegurar que el proyecto sea importable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-INTERVAL_SECONDS = 7200  # 2 horas
+INTERVAL_SECONDS = 21600  # 6 hours - reduced from 2h to optimize Anthropic API costs during validation period
 
 
 async def run_pipeline_once():
