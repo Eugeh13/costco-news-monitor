@@ -29,12 +29,12 @@ def test_distance_zero_at_valle_oriente():
 
 
 def test_distance_known_pair():
-    # Carretera Nacional (25.6026,-100.2640) → Valle Oriente (25.6457,-100.3072) ≈ 6.5 km
+    # Carretera Nacional (25.577970,-100.251028) → Valle Oriente (25.639695,-100.317631) ≈ 9.5 km
     lat1, lon1 = COSTCO_LOCATIONS["Costco Carretera Nacional"]
     lat2, lon2 = COSTCO_LOCATIONS["Costco Valle Oriente"]
     from src.analyzer.geolocator import _haversine_m
     d = _haversine_m(lat1, lon1, lat2, lon2)
-    assert 5_000 < d < 9_000  # sanity range in metres
+    assert 5_000 < d < 12_000  # sanity range in metres
 
 
 def test_is_within_radius_true():

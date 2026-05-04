@@ -35,11 +35,11 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-# ── Costco store coordinates (authoritative — from CLAUDE.md) ─────────────────
+# ── Costco store coordinates (from Google Geocoding API, ROOFTOP precision) ───
 COSTCO_LOCATIONS: dict[str, tuple[float, float]] = {
-    "Costco Carretera Nacional": (25.6026, -100.2640),
-    "Costco Cumbres":            (25.7353, -100.4022),
-    "Costco Valle Oriente":      (25.6457, -100.3072),
+    "Costco Carretera Nacional": (25.577970, -100.251028),
+    "Costco Cumbres":            (25.729656, -100.392913),
+    "Costco Valle Oriente":      (25.639695, -100.317631),
 }
 
 _GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
@@ -145,18 +145,18 @@ La ZMM incluye los siguientes municipios principales:
 Las siguientes ubicaciones son de máxima prioridad para este sistema:
 
 1. **Costco Carretera Nacional**
-   - Dirección: Km 268+500, Carretera Nacional, Bosques de Valle Alto, Monterrey
-   - Coordenadas: 25.6026° N, 100.2640° O
+   - Dirección: Km 268+500, Carr Nacional 501, Bosques de Valle Alto, 64989 Monterrey, N.L.
+   - Coordenadas: 25.577970° N, 100.251028° O
    - Referencias: cerca del cruce con Vía Tampico, zona Bosques de Valle Alto / Valle Alto
 
 2. **Costco Valle Oriente**
-   - Dirección: Av. Lázaro Cárdenas 800, Valle Oriente, San Pedro Garza García
-   - Coordenadas: 25.6457° N, 100.3072° O
+   - Dirección: Av Lázaro Cárdenas 800, Zona Valle Oriente, 66269 San Pedro Garza García, N.L.
+   - Coordenadas: 25.639695° N, 100.317631° O
    - Referencias: frente a Galerías Valle Oriente, zona Centrito Valle
 
 3. **Costco Cumbres**
-   - Dirección: Alejandro de Rodas 6767, Cumbres, Monterrey
-   - Coordenadas: 25.7353° N, 100.4022° O
+   - Dirección: Calle Alejandro de Rodas 6767, Pedregal Cumbres, 64340 Monterrey, N.L.
+   - Coordenadas: 25.729656° N, 100.392913° O
    - Referencias: zona Cumbres 7° Sector / Cumbres Elite, cerca de Liverpool Cumbres
 
 ## Criterios de extracción

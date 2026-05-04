@@ -46,8 +46,8 @@ def _make_incident(
         nearest_costco_dist_m=nearest_costco_dist_m,
         within_radius=within_radius,
         cost_estimated_usd=cost_estimated_usd,
-        geo_lat=25.6026,
-        geo_lon=-100.2640,
+        geo_lat=25.577970,
+        geo_lon=-100.251028,
     )
     if created_at is not None:
         log.created_at = created_at
