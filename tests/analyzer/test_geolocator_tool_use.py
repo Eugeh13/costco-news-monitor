@@ -147,8 +147,8 @@ async def test_maps_to_geolocation_result() -> None:
         exact_address="Carretera Nacional Km 268",
         neighborhood="Bosques de Valle Alto",
         city="Monterrey",
-        latitude=25.6026,
-        longitude=-100.2640,
+        latitude=25.577970,
+        longitude=-100.251028,
         confidence=0.92,
         reasoning="El texto menciona el kilómetro exacto de Carretera Nacional.",
     )
@@ -163,8 +163,8 @@ async def test_maps_to_geolocation_result() -> None:
     assert result.exact_address == "Carretera Nacional Km 268"
     assert result.neighborhood == "Bosques de Valle Alto"
     assert result.city == "Monterrey"
-    assert result.latitude == pytest.approx(25.6026)
-    assert result.longitude == pytest.approx(-100.2640)
+    assert result.latitude == pytest.approx(25.577970)
+    assert result.longitude == pytest.approx(-100.251028)
     assert result.confidence == pytest.approx(0.92)
     assert len(result.reasoning) > 0
 

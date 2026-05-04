@@ -18,9 +18,9 @@ from src.analyzer.geolocator import geocode
 def _make_google_response(
     *,
     status: str = "OK",
-    lat: float = 25.6457,
-    lng: float = -100.3072,
-    formatted_address: str = "Av. Lázaro Cárdenas 800, Valle Oriente, San Pedro Garza García",
+    lat: float = 25.639695,
+    lng: float = -100.317631,
+    formatted_address: str = "Av Lázaro Cárdenas 800, Zona Valle Oriente, 66269 San Pedro Garza García, N.L.",
     location_type: str = "ROOFTOP",
     partial_match: bool = False,
 ) -> MagicMock:
@@ -56,8 +56,8 @@ async def test_geocode_returns_precise_result_for_known_address():
     result = await geocode("Av. Lázaro Cárdenas 800, Valle Oriente", http_client=mock_http, api_key="test-key")
 
     assert result is not None
-    assert abs(result.lat - 25.6457) < 0.001
-    assert abs(result.lon - (-100.3072)) < 0.001
+    assert abs(result.lat - 25.639695) < 0.001
+    assert abs(result.lon - (-100.317631)) < 0.001
     assert result.confidence == 1.0  # ROOFTOP → 1.0
     assert "Valle Oriente" in result.address
 

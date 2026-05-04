@@ -98,15 +98,15 @@ async def test_log_extra_fields_stored(session: AsyncSession) -> None:
         session, run_id, article,
         StageReached.geolocation,
         FinalDecision.pending,
-        geo_lat=25.6457,
-        geo_lon=-100.3072,
+        geo_lat=25.639695,
+        geo_lon=-100.317631,
         geo_address="Av. Lázaro Cárdenas, San Pedro",
         nearest_costco="Costco Valle Oriente",
         nearest_costco_dist_m=450.0,
     )
     await session.commit()
 
-    assert row.geo_lat == pytest.approx(25.6457)
+    assert row.geo_lat == pytest.approx(25.639695)
     assert row.nearest_costco == "Costco Valle Oriente"
     assert row.nearest_costco_dist_m == pytest.approx(450.0)
 
