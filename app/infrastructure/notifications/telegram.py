@@ -42,9 +42,17 @@ class TelegramNotifier(Notifier):
     # ── Formatting ───────────────────────────────────────────
 
     @staticmethod
+    def _escape_md(text: str) -> str:
+        """Escapa los caracteres que rompen el Markdown legacy de Telegram."""
+        for ch in ("\\", "_", "*", "[", "`"):
+            text = text.replace(ch, f"\\{ch}")
+        return text
+
+    @staticmethod
     def _format_alert(alert: Alert) -> str:
         a = alert.analysis
         p = alert.proximity
+        esc = TelegramNotifier._escape_md
 
         severity = a.severity
         if severity >= 9:
@@ -59,7 +67,7 @@ class TelegramNotifier(Notifier):
         lines = [
             f"{alert.severity_emoji} *ALERTA COSTCO MTY*\n",
             f"📍 *{alert.category_label}*",
-            f"📰 {alert.news.titulo}\n",
+            f"📰 {esc(alert.news.titulo)}\n",
             f"⚡ *Severidad: {severity_label}* ({severity}/10)",
         ]
 
@@ -75,15 +83,15 @@ class TelegramNotifier(Notifier):
             lines.append("🚑 Servicios de emergencia en el lugar")
 
         lines.append(f"\n📏 A *{p.distancia_km} km* de {p.costco_nombre}")
-        lines.append(f"🗺️ {a.location.extracted}")
+        lines.append(f"🗺️ {esc(a.location.extracted)}")
 
         if a.summary:
-            lines.append(f"\n📝 {a.summary}")
+            lines.append(f"\n📝 {esc(a.summary)}")
 
-        lines.append(f"\n📡 {alert.news.fuente}")
+        lines.append(f"\n📡 {esc(alert.news.fuente)}")
 
         if alert.news.url:
-            lines.append(f"🔗 [Ver noticia completa]({alert.news.url})")
+            lines.append(f"🔗 [Ver noticia completa]({alert.news.url.replace(')', '%29')})")
 
         lines.append(f"\n⏰ {alert.timestamp.strftime('%d/%m/%Y %H:%M')}")
 
@@ -111,21 +119,26 @@ class TelegramNotifier(Notifier):
     # ── Transport ────────────────────────────────────────────
 
     def _send(self, text: str, disable_preview: bool = True) -> bool:
+        payload = {
+            "chat_id": self._chat_id,
+            "text": text,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": disable_preview,
+        }
         try:
-            response = requests.post(
-                self._api_url,
-                json={
-                    "chat_id": self._chat_id,
-                    "text": text,
-                    "parse_mode": "Markdown",
-                    "disable_web_page_preview": disable_preview,
-                },
-                timeout=10,
-            )
+            response = requests.post(self._api_url, json=payload, timeout=10)
 
             if response.status_code == 200:
                 print("  ✓ Telegram: mensaje enviado")
                 return True
+
+            # Markdown inválido → reenviar en texto plano antes que perder la alerta
+            if response.status_code == 400:
+                payload.pop("parse_mode")
+                response = requests.post(self._api_url, json=payload, timeout=10)
+                if response.status_code == 200:
+                    print("  ✓ Telegram: enviado sin formato (Markdown inválido)")
+                    return True
 
             print(f"  ⚠️ Telegram error: {response.status_code}")
             return False

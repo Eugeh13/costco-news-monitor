@@ -121,19 +121,23 @@ class MonitoringPipeline:
             alert = self._deep.analyze(news_item, triage)
 
             if alert:
-                # Notify
-                self._notifier.send_alert(alert)
-                print("     📱 Alerta enviada")
+                # Notify — si falla, NO marcar procesada para reintentar el próximo ciclo
+                sent = self._notifier.send_alert(alert)
 
-                # Persist
-                if self._repo:
-                    self._repo.save_incident(alert)
+                if sent:
+                    print("     📱 Alerta enviada")
 
-                # Mark as processed
-                if alert.news.url:
-                    self._storage.mark_processed(alert.news.url)
+                    # Persist
+                    if self._repo:
+                        self._repo.save_incident(alert)
 
-                alerts_sent += 1
+                    # Mark as processed
+                    if alert.news.url:
+                        self._storage.mark_processed(alert.news.url)
+
+                    alerts_sent += 1
+                else:
+                    print("     ⚠️ Falló el envío — se reintentará en el próximo ciclo")
 
         # ── Summary ──
         self._send_summary(len(all_news), len(recent), len(new_news), alerts_sent)
