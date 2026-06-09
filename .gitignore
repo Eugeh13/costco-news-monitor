@@ -35,6 +35,9 @@ processed_news.txt
 .env
 .env.local
 
+# Sesión de Twitter/X de twscrape (contiene cookies de autenticación)
+accounts.db
+
 # IDEs
 .vscode/
 .idea/
