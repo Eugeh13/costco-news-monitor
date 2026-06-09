@@ -7,7 +7,7 @@ Single responsibility: fetch direct RSS feeds and return NewsItem models.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import feedparser
@@ -103,11 +103,12 @@ class RSSDirectSource(NewsSource):
 
     @staticmethod
     def _parse_date(entry: dict) -> Optional[datetime]:
-        date_str = entry.get("published") or entry.get("updated")
-        if not date_str:
+        # feedparser entrega *_parsed como struct_time en UTC
+        parsed = entry.get("published_parsed") or entry.get("updated_parsed")
+        if not parsed:
             return None
         try:
-            dt = datetime(*feedparser._parse_date(date_str)[:6])
-            return CENTRAL_TZ.localize(dt)
+            dt = datetime(*parsed[:6], tzinfo=timezone.utc)
+            return dt.astimezone(CENTRAL_TZ)
         except Exception:
             return None

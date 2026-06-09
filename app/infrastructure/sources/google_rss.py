@@ -69,7 +69,7 @@ class GoogleRSSSource(NewsSource):
             if not titulo:
                 continue
 
-            fecha = self._parse_date(entry.get("published"))
+            fecha = self._parse_date(entry.get("published_parsed"))
 
             items.append(
                 NewsItem(
@@ -96,11 +96,12 @@ class GoogleRSSSource(NewsSource):
         return "Google News"
 
     @staticmethod
-    def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
-        if not date_str:
+    def _parse_date(parsed) -> Optional[datetime]:
+        """feedparser entrega published_parsed como struct_time en UTC."""
+        if not parsed:
             return None
         try:
-            dt = datetime(*feedparser._parse_date(date_str)[:6])
-            return CENTRAL_TZ.localize(dt)
+            dt = datetime(*parsed[:6], tzinfo=timezone.utc)
+            return dt.astimezone(CENTRAL_TZ)
         except Exception:
             return None

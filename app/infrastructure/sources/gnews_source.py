@@ -6,7 +6,7 @@ Single responsibility: fetch news via GNews API and return NewsItem models.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import pytz
@@ -100,8 +100,9 @@ class GNewsSource(NewsSource):
             try:
                 dt = datetime.strptime(date_str.strip(), fmt)
                 if dt.tzinfo is None:
-                    dt = CENTRAL_TZ.localize(dt)
-                return dt
+                    # GNews publica en GMT; %Z parsea "GMT" pero deja tzinfo=None
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(CENTRAL_TZ)
             except (ValueError, TypeError):
                 continue
         return None
