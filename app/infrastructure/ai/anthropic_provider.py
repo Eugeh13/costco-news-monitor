@@ -89,8 +89,10 @@ class AnthropicProvider(AIProvider):
         try:
             text = self._extract_json(raw)
             data = json.loads(text)
+            # Handle both {"results": [...]} (what the prompt asks for) and a direct array
+            items = data.get("results", []) if isinstance(data, dict) else data if isinstance(data, list) else []
             results = []
-            for item in data:
+            for item in items:
                 try:
                     decision = TriageDecision(item.get("decision", "desconocido"))
                 except ValueError:
@@ -104,7 +106,7 @@ class AnthropicProvider(AIProvider):
                     reason=item.get("reason", ""),
                 ))
             return results
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
             return [TriageResult(index=i, decision=TriageDecision.UNKNOWN) for i in range(count)]
 
     def _parse_analysis(self, raw: Optional[str]) -> Optional[AnalysisResult]:
@@ -138,7 +140,7 @@ class AnthropicProvider(AIProvider):
                 traffic_impact=traffic,
                 emergency_services=det.get("emergency_services", False),
             )
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
             return None
 
     @staticmethod
