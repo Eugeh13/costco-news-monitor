@@ -33,10 +33,7 @@ class SESNSPMunicipalData:
     def discover_url(self) -> Optional[str]:
         """Encuentra la URL vigente del CSV municipal (IDM_NM_*.csv) en datos.gob.mx."""
         try:
-            response = requests.get(
-                DATASET_PAGE, headers={"User-Agent": _BROWSER_UA}, timeout=30
-            )
-            response.raise_for_status()
+            response = self._get_dataset_page()
         except Exception as e:
             print(f"  ⚠️ SESNSP: no se pudo leer la página del dataset — {e}")
             return None
@@ -82,6 +79,32 @@ class SESNSPMunicipalData:
             return self._filter(csv.reader(text), claves_municipio)
 
     # ── Private ──────────────────────────────────────────────
+
+    @staticmethod
+    def _get_dataset_page() -> requests.Response:
+        """
+        GET a datos.gob.mx con fallback sin verificación SSL.
+
+        La cadena de certificados de www.datos.gob.mx no incluye el intermedio,
+        así que certifi puede fallar aunque el sitio sea legítimo. El fallback
+        SOLO aplica a esta página de descubrimiento (un enlace público); la
+        descarga del CSV en sí va contra repodatos.atdt.gob.mx con SSL completo.
+        """
+        try:
+            response = requests.get(
+                DATASET_PAGE, headers={"User-Agent": _BROWSER_UA}, timeout=30
+            )
+            response.raise_for_status()
+            return response
+        except requests.exceptions.SSLError:
+            print("  ⚠️ SESNSP: cadena SSL incompleta en datos.gob.mx — reintentando sin verificación (solo descubrimiento)")
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            response = requests.get(
+                DATASET_PAGE, headers={"User-Agent": _BROWSER_UA}, timeout=30, verify=False
+            )
+            response.raise_for_status()
+            return response
 
     @staticmethod
     def _filter(reader, claves_municipio: list[str]) -> list[dict]:
