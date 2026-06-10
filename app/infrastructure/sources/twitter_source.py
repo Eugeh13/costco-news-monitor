@@ -27,22 +27,26 @@ from app.domain.ports import NewsSource
 
 CENTRAL_TZ = pytz.timezone("America/Chicago")
 
-# Cuentas a monitorear — relevantes para la zona Costco Monterrey
+# Cuentas a monitorear — validadas en vivo vía Nitter el 2026-06-10 por frescura
+# (¿Nitter devuelve tweets recientes?) y relevancia por zona. Las cuentas muertas
+# o que Nitter sirve obsoletas se removieron. Esta lista la consume NitterSource.
 TWITTER_ACCOUNTS = [
-    # ── Generales MTY ──────────────────────────────────────
-    {"handle": "pc_mty",            "nombre": "Protección Civil MTY"},
-    {"handle": "mtytrafico",        "nombre": "Tráfico MTY"},
-    {"handle": "seguridadmtymx",    "nombre": "Seguridad Monterrey"},
-    {"handle": "QueSucedeEnMty",    "nombre": "Qué Sucede en MTY"},
-    # ── Carretera Nacional ─────────────────────────────────
-    {"handle": "Kilometro264",      "nombre": "Carretera Nacional km 264"},
-    {"handle": "GN_Carreteras",     "nombre": "Guardia Nacional Carreteras"},
-    # ── Cumbres / San Pedro ────────────────────────────────
-    {"handle": "SSPCMonterrey",     "nombre": "SSPC Monterrey"},
-    {"handle": "Rescate911SP",      "nombre": "Rescate 911 San Pedro"},
-    # ── Valle Oriente / Lázaro Cárdenas ───────────────────
-    {"handle": "TraficoenMty",      "nombre": "Tráfico en Monterrey"},
-    {"handle": "SanPedroNL",        "nombre": "Municipio San Pedro"},
+    # ── Zona Costco Carretera Nacional (sur de MTY) ────────
+    {"handle": "AtentosMTYSur",   "nombre": "Atentos MTY Sur (vecinal Carr. Nacional)"},
+    {"handle": "autopistasalmty", "nombre": "Autopista Saltillo-Monterrey"},
+    {"handle": "reanloficial",    "nombre": "REANL — autopistas/Periférico NL"},
+    # ── Zona Costco Valle Oriente (San Pedro) ──────────────
+    {"handle": "SanPedroNL",      "nombre": "Municipio San Pedro"},
+    # ── Protección Civil / Emergencias (cubren ambas zonas) ─
+    {"handle": "pc_nuevoleon",    "nombre": "Protección Civil NL (estatal)"},
+    {"handle": "pc_mty",          "nombre": "Protección Civil Monterrey"},
+    {"handle": "BomberosNL",      "nombre": "Bomberos Nuevo León"},
+    # ── Seguridad ──────────────────────────────────────────
+    {"handle": "FuerzaCivil_NL",  "nombre": "Fuerza Civil NL"},
+    {"handle": "seguridadmtymx",  "nombre": "Seguridad Monterrey"},
+    {"handle": "C5NuevoLeon",     "nombre": "C5 Nuevo León (emergencias)"},
+    # ── Tráfico metropolitano ──────────────────────────────
+    {"handle": "trafico889",      "nombre": "Radio Tráfico Total"},
 ]
 
 # Cuántos tweets por cuenta (los más recientes)
