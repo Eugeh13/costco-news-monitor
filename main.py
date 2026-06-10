@@ -12,8 +12,8 @@ from app.infrastructure.persistence.file_storage import FileStorage
 from app.infrastructure.sources.deep_reader import MultiStrategyReader
 from app.infrastructure.sources.gnews_source import GNewsSource
 from app.infrastructure.sources.google_rss import GoogleRSSSource
+from app.infrastructure.sources.nitter_source import NitterSource
 from app.infrastructure.sources.rss_direct import RSSDirectSource
-from app.infrastructure.sources.twitter_source import TwitterSource
 from app.services.content_hasher import ContentHasher
 from app.services.deep_analysis import DeepAnalysisService
 from app.services.geo_service import GeoService, NominatimGeocoder
@@ -41,17 +41,15 @@ def build_pipeline() -> MonitoringPipeline:
     print(f"🤖 AI: {ai.provider_name()}")
 
     # ── News Sources ──
+    # Twitter/X vía Nitter (RSS) — sin cookies ni API; Railway le pega a una
+    # instancia pública de Nitter, así que la IP de datacenter deja de importar.
     sources = [
         GoogleRSSSource(),
         GNewsSource(),
         RSSDirectSource(),
+        NitterSource(),
     ]
-
-    if settings.twitter_enabled:
-        sources.append(TwitterSource())
-        print("🐦 Twitter/X: ✓")
-    else:
-        print("🐦 Twitter/X: ✗ (configura TWITTER_AUTH_TOKEN y TWITTER_CT0)")
+    print("🐦 Twitter/X vía Nitter: ✓")
 
     # ── Notifier ──
     if settings.telegram_enabled:
