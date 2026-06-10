@@ -74,6 +74,11 @@ class Notifier(ABC):
         """Send a monitoring summary. Returns True on success."""
         ...
 
+    @abstractmethod
+    def send_text(self, text: str) -> bool:
+        """Send a free-form text message (e.g., monthly digests). Returns True on success."""
+        ...
+
 
 class NewsRepository(ABC):
     """Contract for persisting and querying incidents."""

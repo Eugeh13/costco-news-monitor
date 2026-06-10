@@ -30,6 +30,9 @@ class TelegramNotifier(Notifier):
         message = self._format_summary(stats)
         return self._send(message, disable_preview=True)
 
+    def send_text(self, text: str) -> bool:
+        return self._send(text, disable_preview=True)
+
     def send_test(self) -> bool:
         message = (
             "🤖 *Test del Sistema de Monitoreo*\n\n"
@@ -164,4 +167,8 @@ class ConsoleNotifier(Notifier):
     def send_summary(self, stats: dict) -> bool:
         print(f"  📊 Resumen: {stats.get('news_analyzed', 0)} analizadas, "
               f"{stats.get('alerts_sent', 0)} alertas")
+        return True
+
+    def send_text(self, text: str) -> bool:
+        print(f"\n{text}\n")
         return True
