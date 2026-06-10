@@ -102,19 +102,20 @@ class TelegramNotifier(Notifier):
 
     @staticmethod
     def _format_summary(stats: dict) -> str:
+        """Reporte diario (M1): un solo mensaje de estado al día."""
         timestamp = stats.get("timestamp", datetime.now().strftime("%d/%m/%Y %H:%M"))
-        analyzed = stats.get("news_analyzed", 0)
         alerts = stats.get("alerts_sent", 0)
 
         lines = [
-            "✅ *Monitoreo Completado*\n",
-            "📊 *Resumen:*",
-            f"• Noticias analizadas: {analyzed}",
+            "✅ *Reporte diario — Costco Monitor*\n",
+            "Sistema operando con normalidad.",
+            f"• Ciclos de monitoreo: {stats.get('cycles', 0)}",
+            f"• Noticias nuevas analizadas: {stats.get('news_analyzed', 0)}",
             f"• Alertas de alto impacto: {alerts}",
         ]
 
         if alerts == 0:
-            lines.append("• Estado: Todo tranquilo ✓")
+            lines.append("• Sin incidentes cerca de los Costco ✓")
 
         lines.append(f"\n⏰ {timestamp}")
         return "\n".join(lines)

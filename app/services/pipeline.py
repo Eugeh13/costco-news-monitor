@@ -50,8 +50,15 @@ class MonitoringPipeline:
         self._hasher = hasher
         self._max_age_hours = max_age_hours
 
-    def run_once(self) -> None:
-        """Execute a single monitoring cycle."""
+    def run_once(self) -> dict:
+        """
+        Execute a single monitoring cycle.
+
+        Devuelve las métricas del ciclo (collected/recent/new/alerts) para que
+        el scheduler las acumule en el heartbeat diario. Ya NO se envía un
+        resumen por ciclo a Telegram (M1): decenas de "todo tranquilo" al día
+        entrenan a ignorar el canal de alertas.
+        """
         now = datetime.now(CENTRAL_TZ)
         print(f"\n🔍 Monitoreo — {now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         print("=" * 70)
@@ -62,15 +69,14 @@ class MonitoringPipeline:
 
         if not all_news:
             print("  ⚠️ No se obtuvieron noticias")
-            self._send_summary(0, 0, 0, 0)
-            return
+            return self._stats(0, 0, 0, 0)
 
         # ── STEP 2: Hash check (0 tokens) ──
         print(f"\n🔗 PASO 2: Verificando cambios (hash)...")
         if not self._hasher.has_changed(all_news):
             n = self._hasher.consecutive_no_change
             print(f"  ⚡ Sin cambios ({n}x consecutivo) — 0 tokens consumidos")
-            return
+            return self._stats(len(all_news), 0, 0, 0)
 
         # ── STEP 3: Time filter (0 tokens) ──
         print(f"\n⏰ PASO 3: Filtrando por tiempo ({self._max_age_hours}h)...")
@@ -79,8 +85,7 @@ class MonitoringPipeline:
 
         if not recent:
             print("  ℹ️ No hay noticias recientes")
-            self._send_summary(len(all_news), 0, 0, 0)
-            return
+            return self._stats(len(all_news), 0, 0, 0)
 
         # ── STEP 4: Dedup (0 tokens) ──
         print(f"\n🔄 PASO 4: Filtrando duplicadas/procesadas...")
@@ -89,8 +94,7 @@ class MonitoringPipeline:
 
         if not new_news:
             print("  ℹ️ Todas ya procesadas")
-            self._send_summary(len(all_news), len(recent), 0, 0)
-            return
+            return self._stats(len(all_news), len(recent), 0, 0)
 
         # ── STEP 4.5: Keyword hints (soft, not a filter) ──
         keyword_hits = 0
@@ -110,8 +114,7 @@ class MonitoringPipeline:
 
         if not candidates:
             print("  ℹ️ Sin candidatas relevantes")
-            self._send_summary(len(all_news), len(recent), len(new_news), 0)
-            return
+            return self._stats(len(all_news), len(recent), len(new_news), 0)
 
         # ── STEP 6: Deep analysis + geo + notify ──
         print(f"\n🔬 PASO 6: Análisis profundo ({len(candidates)} candidatas)...")
@@ -149,8 +152,7 @@ class MonitoringPipeline:
             if id(item) not in candidate_ids and item.url:
                 self._storage.mark_processed(item.url)
 
-        # ── Summary ──
-        self._send_summary(len(all_news), len(recent), len(new_news), alerts_sent)
+        return self._stats(len(all_news), len(recent), len(new_news), alerts_sent)
 
     # ── Private helpers ──────────────────────────────────────
 
@@ -205,13 +207,6 @@ class MonitoringPipeline:
 
         return new_items
 
-    def _send_summary(self, total: int, recent: int, new: int, alerts: int) -> None:
-        """Send monitoring summary (only if no alerts were sent)."""
-        if alerts > 0:
-            return  # Individual alerts are sufficient
-
-        self._notifier.send_summary({
-            "timestamp": datetime.now(CENTRAL_TZ).strftime("%d/%m/%Y %H:%M %Z"),
-            "news_analyzed": total,
-            "alerts_sent": alerts,
-        })
+    @staticmethod
+    def _stats(collected: int, recent: int, new: int, alerts: int) -> dict:
+        return {"collected": collected, "recent": recent, "new": new, "alerts": alerts}

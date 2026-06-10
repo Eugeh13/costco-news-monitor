@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     night_pause_start: int = 23  # Hour (CST)
     night_pause_end: int = 6    # Hour (CST)
 
+    # ── Heartbeat diario (M1) ──
+    # UN solo reporte de estado al día por Telegram (antes era un resumen por
+    # ciclo sin alertas: decenas de "todo tranquilo" que entrenan a ignorar el
+    # canal). Se envía en el primer ciclo a partir de esta hora (hora del centro);
+    # marcador persistente YYYY-MM-DD para no reenviar tras un reinicio.
+    daily_heartbeat_enabled: bool = True
+    daily_heartbeat_hour: int = 8
+
     # ── Digest mensual de criminalidad (SESNSP) ──
     # El SESNSP publica el corte mensual ~día 20. El scheduler intenta el
     # digest a partir del día crime_digest_day a las 9:00 (hora del centro)

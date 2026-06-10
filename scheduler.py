@@ -8,6 +8,8 @@ Smart scheduler — runs the monitoring pipeline with dynamic intervals.
   latido en app.infrastructure.heartbeat para que /health detecte un
   worker muerto y Railway reinicie.
 - M8: una vez al día limpia el archivo de URLs procesadas (FileStorage).
+- M1: heartbeat diario — UN reporte de estado al día (daily_heartbeat_hour)
+  con lo acumulado, en vez de un resumen por ciclo; marcador YYYY-MM-DD.
 - Digest mensual SESNSP: a partir del día crime_digest_day (9:00 hora del
   centro) genera y envía el contexto delictivo; marcador persistente
   YYYY-MM para no reenviar tras un reinicio del contenedor.
@@ -48,6 +50,71 @@ def _daily_cleanup(pipeline) -> None:
         print(f"🧹 Limpieza diaria: {removed} URLs antiguas eliminadas de {settings.processed_news_file}")
     else:
         print("🧹 Limpieza diaria: nada que limpiar")
+
+
+# ── Heartbeat diario (M1) ────────────────────────────────────
+
+
+def _heartbeat_marker_path() -> str:
+    """Marcador 'YYYY-MM-DD' junto al archivo de FileStorage (sobrevive reinicios)."""
+    data_dir = os.path.dirname(settings.processed_news_file) or "."
+    return os.path.join(data_dir, "daily_heartbeat_sent.txt")
+
+
+def _heartbeat_already_sent(day_key: str) -> bool:
+    try:
+        with open(_heartbeat_marker_path(), encoding="utf-8") as f:
+            return f.read().strip() == day_key
+    except OSError:
+        return False
+
+
+def _mark_heartbeat_sent(day_key: str) -> None:
+    try:
+        with open(_heartbeat_marker_path(), "w", encoding="utf-8") as f:
+            f.write(f"{day_key}\n")
+    except OSError as e:
+        print(f"  ⚠️ No se pudo escribir el marcador del heartbeat: {e}")
+
+
+def _maybe_send_daily_heartbeat(pipeline, acc: dict, now: datetime) -> None:
+    """
+    Reporte diario de estado: UN mensaje al día (primer ciclo a partir de
+    daily_heartbeat_hour) con lo acumulado desde el último reporte.
+
+    - Si el envío falla, NO se escribe el marcador ni se resetea el
+      acumulador: se reintenta en el siguiente ciclo.
+    - Tras un reinicio del contenedor el acumulado vuelve a cero (vive en
+      memoria); el marcador persistente evita el doble envío del día.
+    - Nunca propaga excepciones (no debe tumbar el loop de monitoreo).
+    """
+    if not settings.daily_heartbeat_enabled:
+        return
+    if now.hour < settings.daily_heartbeat_hour:
+        return
+
+    day_key = now.strftime("%Y-%m-%d")
+    if _heartbeat_already_sent(day_key):
+        return
+
+    try:
+        stats = {
+            "timestamp": now.strftime("%d/%m/%Y %H:%M %Z"),
+            "cycles": acc.get("cycles", 0),
+            "news_analyzed": acc.get("new", 0),
+            "alerts_sent": acc.get("alerts", 0),
+        }
+        notifier = getattr(pipeline, "_notifier", None)
+        if notifier is not None and not notifier.send_summary(stats):
+            print("  ⚠️ Heartbeat diario: el envío falló — reintento en el siguiente ciclo")
+            return
+
+        _mark_heartbeat_sent(day_key)
+        acc.update(cycles=0, new=0, alerts=0)
+        print(f"  ✓ Heartbeat diario {day_key} enviado")
+    except Exception as e:
+        print(f"  ⚠️ Heartbeat diario falló: {e} — reintento en el siguiente ciclo")
+        traceback.print_exc()
 
 
 # ── Digest mensual SESNSP ────────────────────────────────────
@@ -140,6 +207,9 @@ def main():
     pipeline = None
     current_interval = min_secs
     last_cleanup_date = None
+    # M1: acumulado de ciclos desde el último heartbeat diario (vive en memoria;
+    # tras un reinicio se reporta lo acumulado desde el arranque).
+    hb_acc = {"cycles": 0, "new": 0, "alerts": 0}
 
     try:
         while True:
@@ -169,7 +239,10 @@ def main():
                     print(f"🔔 {now.strftime('%Y-%m-%d %H:%M:%S %Z')} | Intervalo: {current_interval // 60}min")
                     print(f"{'='*70}")
 
-                    pipeline.run_once()
+                    stats = pipeline.run_once() or {}
+                    hb_acc["cycles"] += 1
+                    hb_acc["new"] += stats.get("new", 0)
+                    hb_acc["alerts"] += stats.get("alerts", 0)
 
                     # Adjust interval
                     if pipeline._hasher.consecutive_no_change > 0:
@@ -185,6 +258,9 @@ def main():
                     if last_cleanup_date != now.date():
                         _daily_cleanup(pipeline)
                         last_cleanup_date = now.date()
+
+                    # M1: heartbeat diario (un solo mensaje de estado al día)
+                    _maybe_send_daily_heartbeat(pipeline, hb_acc, now)
 
                     # Digest mensual SESNSP (solo corre fuera de la pausa
                     # nocturna porque está dentro de este else; nunca propaga)
