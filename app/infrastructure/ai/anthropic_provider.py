@@ -73,7 +73,11 @@ class AnthropicProvider(AIProvider):
         try:
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=2000,
+                # 2000 truncaba el JSON del triage de 25 noticias (~2200 tokens) →
+                # json.loads fallaba → fallback "todas candidatas" → análisis profundo
+                # masivo y caro. 4096 cubre el chunk completo con margen.
+                max_tokens=4096,
+                temperature=0,  # clasificación determinista
                 system=system,
                 messages=[{"role": "user", "content": user}],
             )

@@ -108,9 +108,14 @@ class DeepAnalysisService:
             return result if result.is_within_radius else None
 
         if not analysis.location.is_specific:
-            print(f"     ⚠️ Ubicación no específica: '{location_text}'")
-        else:
-            print(f"     📍 Ubicación: {location_text}")
+            # Ubicación vaga (p.ej. solo "Monterrey") → geocodificarla daría el
+            # centro de la ciudad (dentro del radio de Valle Oriente) y generaría
+            # alertas falsas. Confiar solo en vialidades clave del texto.
+            print(f"     ⚠️ Ubicación no específica: '{location_text}' — solo vialidades")
+            result = self._geo.check_roads_only(full_text)
+            return result if result.is_within_radius else None
+
+        print(f"     📍 Ubicación: {location_text}")
 
         # Try normalized first, then raw
         normalized = analysis.location.normalized or location_text

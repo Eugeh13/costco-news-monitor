@@ -19,10 +19,11 @@ from app.domain.models import Coordinates, CostcoLocation, ProximityResult
 from app.domain.ports import GeocodingService
 
 
-# Generic coordinates for fallback
+# Coordenadas aproximadas por zona, SOLO como fallback cuando Nominatim falla.
+# OJO: no incluir "monterrey"/"centro" genéricos — su centroide cae dentro del
+# radio de 5 km de Costco Valle Oriente y generaba alertas falsas para cualquier
+# nota que mencionara "Monterrey". Solo zonas/municipios específicos.
 ZONE_COORDS: dict[str, tuple[float, float]] = {
-    "monterrey": (25.6866, -100.3161),
-    "centro": (25.6692, -100.3099),
     "san pedro": (25.6520, -100.4092),
     "san pedro garza garcía": (25.6520, -100.4092),
     "garza garcía": (25.6520, -100.4092),
@@ -64,8 +65,9 @@ class NominatimGeocoder(GeocodingService):
             except Exception:
                 continue
 
-        # Fallback to generic zone
-        for zone, coords in ZONE_COORDS.items():
+        # Fallback por zona — la coincidencia MÁS específica (clave más larga) primero,
+        # para que "san pedro garza garcía" gane sobre "garza garcía", etc.
+        for zone, coords in sorted(ZONE_COORDS.items(), key=lambda kv: len(kv[0]), reverse=True):
             if zone in text_lower:
                 print(f"  ⚠️ Usando coordenadas aproximadas para '{zone}'")
                 return coords
@@ -180,12 +182,17 @@ class GeoService:
         for loc in self._locations:
             for road in loc.vialidades_clave:
                 if road in text_lower:
-                    print(f"  ✓ Vialidad clave: '{road}' ({loc.nombre})")
-
                     if coords:
+                        # Si ya tenemos coords geocodificadas y están lejos, la
+                        # mención de la vialidad es coincidencia (esas avenidas
+                        # existen en muchas ciudades) → NO es cercanía real.
                         dist = geodesic(coords, loc.coords.as_tuple()).kilometers
+                        if dist > self._radius_km:
+                            continue
                     else:
-                        dist = 0.5  # Assume close if road is mentioned
+                        dist = 0.5  # Sin coords: la mención de la vialidad es la única señal
+
+                    print(f"  ✓ Vialidad clave: '{road}' ({loc.nombre})")
 
                     return ProximityResult(
                         is_within_radius=True,

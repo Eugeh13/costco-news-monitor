@@ -117,6 +117,8 @@ class MonitoringPipeline:
         print(f"\n🔬 PASO 6: Análisis profundo ({len(candidates)} candidatas)...")
         alerts_sent = 0
 
+        candidate_ids = {id(n) for n, _ in candidates}
+
         for news_item, triage in candidates:
             alert = self._deep.analyze(news_item, triage)
 
@@ -131,13 +133,21 @@ class MonitoringPipeline:
                     if self._repo:
                         self._repo.save_incident(alert)
 
-                    # Mark as processed
-                    if alert.news.url:
-                        self._storage.mark_processed(alert.news.url)
-
+                    if news_item.url:
+                        self._storage.mark_processed(news_item.url)
                     alerts_sent += 1
                 else:
                     print("     ⚠️ Falló el envío — se reintentará en el próximo ciclo")
+            else:
+                # Descartada por análisis profundo/geo → marcar para no re-pagar IA cada ciclo
+                if news_item.url:
+                    self._storage.mark_processed(news_item.url)
+
+        # Noticias que el triage descartó (no candidatas) → también marcar:
+        # sin esto se re-triagean (re-pagan IA) cada ciclo mientras sigan en los feeds.
+        for item in new_news:
+            if id(item) not in candidate_ids and item.url:
+                self._storage.mark_processed(item.url)
 
         # ── Summary ──
         self._send_summary(len(all_news), len(recent), len(new_news), alerts_sent)
