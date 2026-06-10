@@ -7,6 +7,7 @@ Implements the NewsRepository port using psycopg2 with proper context managers.
 from __future__ import annotations
 
 import hashlib
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Optional
@@ -20,7 +21,9 @@ CENTRAL_TZ = pytz.timezone("America/Chicago")
 
 try:
     import psycopg2
+    from psycopg2 import errors as pg_errors
     from psycopg2.extras import RealDictCursor
+    from psycopg2.pool import ThreadedConnectionPool
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     PSYCOPG2_AVAILABLE = False
@@ -33,19 +36,56 @@ class PostgresRepository(NewsRepository):
         if not PSYCOPG2_AVAILABLE:
             raise ImportError("pip install psycopg2-binary")
         self._db_url = database_url
+        # M2: pool de conexiones (lazy) — antes se abría una conexión nueva
+        # por CADA operación (una por cada is_duplicate del paso de dedup).
+        # Lazy para conservar el comportamiento previo: el constructor no
+        # conecta; el primer error de conexión ocurre en la primera operación.
+        self._pool: Optional[ThreadedConnectionPool] = None
+        self._pool_lock = threading.Lock()
+
+    def _get_pool(self) -> ThreadedConnectionPool:
+        if self._pool is None:
+            with self._pool_lock:
+                if self._pool is None:
+                    # ThreadedConnectionPool: el repo se usa desde el hilo
+                    # del worker y desde los handlers de FastAPI.
+                    self._pool = ThreadedConnectionPool(
+                        minconn=1, maxconn=4, dsn=self._db_url
+                    )
+        return self._pool
 
     @contextmanager
     def _connection(self):
-        """Context manager for safe connection handling."""
-        conn = psycopg2.connect(self._db_url)
+        """Presta una conexión del pool y la devuelve al terminar.
+
+        Reconexión ante OperationalError: si la conexión prestada está rota
+        (p. ej. Postgres reinició), se descarta del pool para que la
+        siguiente operación obtenga una fresca. El error se propaga igual
+        que antes (el ciclo del scheduler lo atrapa y continúa).
+        """
+        pool = self._get_pool()
+        conn = pool.getconn()
+        if conn.closed:
+            # Conexión muerta que quedó en el pool → descartar y reintentar
+            pool.putconn(conn, close=True)
+            conn = pool.getconn()
+
+        broken = False
         try:
             yield conn
             conn.commit()
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
+            # Conexión rota: no intentar rollback sobre ella, solo descartarla
+            broken = True
+            raise
         except Exception:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception:
+                broken = True
             raise
         finally:
-            conn.close()
+            pool.putconn(conn, close=broken)
 
     # ── NewsRepository interface ─────────────────────────────
 
@@ -54,6 +94,16 @@ class PostgresRepository(NewsRepository):
         a = alert.analysis
         p = alert.proximity
 
+        try:
+            return self._insert_incident(alert, news_hash, a, p)
+        except pg_errors.UniqueViolation:
+            # A3: el ON CONFLICT solo cubre noticia_hash, pero el esquema
+            # también tiene UNIQUE (url, fuente). Misma nota con otro título
+            # (Google News reescribe titulares) → duplicado benigno, no error.
+            print("  ⚠️ Duplicado en DB (url+fuente), omitida")
+            return None
+
+    def _insert_incident(self, alert: Alert, news_hash: str, a, p) -> Optional[int]:
         with self._connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -64,14 +114,14 @@ class PostgresRepository(NewsRepository):
                     ubicacion_texto, latitud, longitud,
                     costco_nombre, costco_distancia_km,
                     victimas, heridos, impacto_trafico, servicios_emergencia,
-                    fecha_publicacion, alerta_enviada
+                    fecha_publicacion, fecha_evento, alerta_enviada
                 ) VALUES (
                     %s, %s, %s, %s, %s,
                     %s, %s,
                     %s, %s, %s,
                     %s, %s,
                     %s, %s, %s, %s,
-                    %s, %s
+                    %s, %s, %s
                 )
                 ON CONFLICT (noticia_hash) DO NOTHING
                 RETURNING id
@@ -80,7 +130,10 @@ class PostgresRepository(NewsRepository):
                     news_hash,
                     alert.news.titulo,
                     a.summary,
-                    alert.news.url or "",
+                    # Placeholder único por noticia: con '' literal, dos alertas
+                    # sin URL de la misma fuente colisionan en UNIQUE(url, fuente)
+                    # y la segunda se descartaría en silencio.
+                    alert.news.url or f"sin-url:{news_hash}",
                     alert.news.fuente,
                     a.category.value,
                     a.severity,
@@ -94,6 +147,9 @@ class PostgresRepository(NewsRepository):
                     a.traffic_impact.value,
                     a.emergency_services,
                     alert.news.fecha_pub,
+                    # M3: fecha_evento — las vistas del dashboard filtran por
+                    # esta columna; Alert.fecha_evento = fecha_pub o timestamp.
+                    alert.fecha_evento,
                     True,
                 ),
             )

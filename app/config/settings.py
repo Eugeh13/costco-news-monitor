@@ -28,12 +28,15 @@ class Settings(BaseSettings):
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
 
-    # ── Twitter/X (cookie-based, no API key needed) ──
-    twitter_auth_token: Optional[str] = None
-    twitter_ct0: Optional[str] = None
-
     # ── Database ──
     database_url: Optional[str] = None
+
+    # ── Fuentes ──
+    # GNews (lib) descarga con feedparser/urllib: falla SSL en local y no permite
+    # inyectar sesión/User-Agent. Además es redundante: usa el mismo backend
+    # (news.google.com/rss/search) que GoogleRSSSource, que ya funciona con
+    # requests+UA. Desactivada por default; ver gnews_source.py.
+    gnews_enabled: bool = False
 
     # ── Monitoring ──
     radius_km: float = 5.0
@@ -47,13 +50,17 @@ class Settings(BaseSettings):
     night_pause_start: int = 23  # Hour (CST)
     night_pause_end: int = 6    # Hour (CST)
 
+    # ── Digest mensual de criminalidad (SESNSP) ──
+    # El SESNSP publica el corte mensual ~día 20. El scheduler intenta el
+    # digest a partir del día crime_digest_day a las 9:00 (hora del centro)
+    # y reintenta en cada ciclo hasta lograrlo; un marcador persistente
+    # (YYYY-MM, junto al archivo de FileStorage) evita reenvíos en el mes.
+    crime_digest_enabled: bool = True  # Apagar para deshabilitar el digest mensual
+    crime_digest_day: int = 25         # Día del mes a partir del cual se intenta
+
     @property
     def telegram_enabled(self) -> bool:
         return bool(self.telegram_bot_token and self.telegram_chat_id)
-
-    @property
-    def twitter_enabled(self) -> bool:
-        return bool(self.twitter_auth_token and self.twitter_ct0)
 
     @property
     def database_enabled(self) -> bool:

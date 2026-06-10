@@ -117,7 +117,9 @@ class OpenAIProvider(AIProvider):
                 )
             return results
 
-        except (json.JSONDecodeError, KeyError) as e:
+        except (json.JSONDecodeError, KeyError, AttributeError, TypeError) as e:
+            # Mismo set que anthropic_provider (fix C1): items no-dict o severity
+            # no-numérica no deben tirar el triage completo.
             print(f"  ⚠️ JSON parse error: {e}")
             print(f"  ⚠️ Triage falló — fallback: todas como candidatas")
             return [
@@ -165,7 +167,7 @@ class OpenAIProvider(AIProvider):
                 emergency_services=details.get("emergency_services", False),
             )
 
-        except (json.JSONDecodeError, KeyError) as e:
+        except (json.JSONDecodeError, KeyError, AttributeError, TypeError) as e:
             print(f"  ⚠️ Analysis parse error: {e}")
             return None
 

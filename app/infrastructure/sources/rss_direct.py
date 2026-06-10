@@ -30,12 +30,14 @@ class RSSFeed:
 
 
 # Default feeds for Monterrey / Coahuila region
+#
+# NOTA (2026-06-10): se eliminó el feed de Milenio NL. Milenio ya no publica RSS:
+# se probaron en vivo /rss/seccion/estados/nuevo-leon (404), /rss, /rss/portada,
+# /rss/seccion/policia, /rss/seccion/monterrey, /rss.xml, /feed, /api/v1/rss y
+# las rutas /rss7/ y /rss10/ de su robots.txt — todas devuelven 404 o HTML.
+# La cobertura de Milenio llega igualmente vía Google News RSS (google_rss.py),
+# que indexa milenio.com. Si Milenio reactiva un RSS, agregarlo aquí probado en vivo.
 DEFAULT_FEEDS = [
-    RSSFeed(
-        url="https://www.milenio.com/rss/seccion/estados/nuevo-leon",
-        nombre="Milenio NL",
-        filtro_geo=False,
-    ),
     RSSFeed(
         url="https://vanguardia.com.mx/rss.xml",
         nombre="Vanguardia",

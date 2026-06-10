@@ -79,15 +79,17 @@ CREATE TABLE IF NOT EXISTS ejecuciones_monitoreo (
 );
 
 -- Vista para dashboard: Noticias recientes por categoría
+-- NOTA: fecha_evento puede ser NULL en filas históricas (el INSERT no la poblaba),
+-- por eso se usa COALESCE con fecha_publicacion/fecha_deteccion como respaldo.
 CREATE OR REPLACE VIEW vista_noticias_recientes AS
-SELECT 
+SELECT
     categoria,
     COUNT(*) as total,
     COUNT(CASE WHEN alerta_enviada THEN 1 END) as con_alerta,
     AVG(severidad) as severidad_promedio,
-    MAX(fecha_evento) as ultima_ocurrencia
+    MAX(COALESCE(fecha_evento, fecha_publicacion, fecha_deteccion)) as ultima_ocurrencia
 FROM noticias
-WHERE fecha_evento >= NOW() - INTERVAL '7 days'
+WHERE COALESCE(fecha_evento, fecha_publicacion, fecha_deteccion) >= NOW() - INTERVAL '7 days'
 GROUP BY categoria
 ORDER BY total DESC;
 
@@ -101,10 +103,10 @@ SELECT
     COUNT(CASE WHEN categoria = 'accidente_vial' THEN 1 END) as accidentes,
     COUNT(CASE WHEN categoria = 'incendio' THEN 1 END) as incendios,
     COUNT(CASE WHEN categoria = 'seguridad' THEN 1 END) as seguridad,
-    MAX(fecha_evento) as ultimo_evento
+    MAX(COALESCE(fecha_evento, fecha_publicacion, fecha_deteccion)) as ultimo_evento
 FROM noticias
 WHERE costco_nombre IS NOT NULL
-  AND fecha_evento >= NOW() - INTERVAL '30 days'
+  AND COALESCE(fecha_evento, fecha_publicacion, fecha_deteccion) >= NOW() - INTERVAL '30 days'
 GROUP BY costco_nombre
 ORDER BY total_eventos DESC;
 

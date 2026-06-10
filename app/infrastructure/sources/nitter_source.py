@@ -1,7 +1,7 @@
 """
 Nitter source — recolecta tweets de cuentas clave vía RSS de instancias Nitter.
 
-Reemplaza a TwitterSource (twscrape) sin cookies, sin proxies y sin API:
+Reemplazó a TwitterSource (twscrape, ya eliminado) sin cookies, proxies ni API:
 Railway le pega a una instancia pública de Nitter (su backend hace el scraping),
 así que la IP de datacenter de Railway deja de importar.
 
@@ -24,9 +24,31 @@ import requests
 
 from app.domain.models import NewsItem
 from app.domain.ports import NewsSource
-from app.infrastructure.sources.twitter_source import TWITTER_ACCOUNTS
 
 CENTRAL_TZ = pytz.timezone("America/Chicago")
+
+# Cuentas a monitorear — validadas en vivo vía Nitter el 2026-06-10 por frescura
+# (¿Nitter devuelve tweets recientes?) y relevancia por zona. Las cuentas muertas
+# o que Nitter sirve obsoletas se removieron.
+# (Lista movida aquí desde twitter_source.py al eliminar la vía twscrape.)
+TWITTER_ACCOUNTS = [
+    # ── Zona Costco Carretera Nacional (sur de MTY) ────────
+    {"handle": "AtentosMTYSur",   "nombre": "Atentos MTY Sur (vecinal Carr. Nacional)"},
+    {"handle": "autopistasalmty", "nombre": "Autopista Saltillo-Monterrey"},
+    {"handle": "reanloficial",    "nombre": "REANL — autopistas/Periférico NL"},
+    # ── Zona Costco Valle Oriente (San Pedro) ──────────────
+    {"handle": "SanPedroNL",      "nombre": "Municipio San Pedro"},
+    # ── Protección Civil / Emergencias (cubren ambas zonas) ─
+    {"handle": "pc_nuevoleon",    "nombre": "Protección Civil NL (estatal)"},
+    {"handle": "pc_mty",          "nombre": "Protección Civil Monterrey"},
+    {"handle": "BomberosNL",      "nombre": "Bomberos Nuevo León"},
+    # ── Seguridad ──────────────────────────────────────────
+    {"handle": "FuerzaCivil_NL",  "nombre": "Fuerza Civil NL"},
+    {"handle": "seguridadmtymx",  "nombre": "Seguridad Monterrey"},
+    {"handle": "C5NuevoLeon",     "nombre": "C5 Nuevo León (emergencias)"},
+    # ── Tráfico metropolitano ──────────────────────────────
+    {"handle": "trafico889",      "nombre": "Radio Tráfico Total"},
+]
 
 # Instancias en orden de preferencia. La primera que responda se usa para todas
 # las cuentas del ciclo; las demás son respaldo si esa cae.

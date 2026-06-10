@@ -11,7 +11,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+import pytz
 from pydantic import BaseModel, Field
+
+# Misma convención que scheduler.py: hora del centro para todas las fechas
+# que terminan en la BD (en Railway el reloj del contenedor es UTC).
+_CENTRAL_TZ = pytz.timezone("America/Chicago")
 
 
 # ============================================================
@@ -60,13 +65,19 @@ class NewsItem(BaseModel):
 
     def to_dict(self) -> dict:
         """Backward-compatible dict export for AI prompts."""
-        return {
+        d = {
             "titulo": self.titulo,
             "contenido": self.contenido[:500],
             "url": self.url or "",
             "fuente": self.fuente,
             "fecha_pub": self.fecha_pub.isoformat() if self.fecha_pub else None,
         }
+        # Solo se incluye cuando el pipeline detectó keywords de alto impacto
+        # (Paso 4.5) — así la IA del triage recibe la pista sin gastar tokens
+        # en un campo null para el resto de las noticias.
+        if self.keyword_hint:
+            d["keyword_hint"] = self.keyword_hint
+        return d
 
 
 class TriageResult(BaseModel):
@@ -149,6 +160,16 @@ class Alert(BaseModel):
     analysis: AnalysisResult
     proximity: ProximityResult
     timestamp: datetime = Field(default_factory=datetime.now)
+
+    @property
+    def fecha_evento(self) -> datetime:
+        """
+        Fecha del evento para la columna noticias.fecha_evento (las vistas SQL
+        del dashboard filtran por ella). Mejor aproximación disponible: la fecha
+        de publicación de la noticia; si la fuente no la trae, "ahora" en hora
+        del centro (self.timestamp es naive y en Railway sería UTC, ~6h corrido).
+        """
+        return self.news.fecha_pub or datetime.now(_CENTRAL_TZ)
 
     @property
     def severity_emoji(self) -> str:

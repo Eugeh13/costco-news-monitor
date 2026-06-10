@@ -26,6 +26,12 @@ UBICACIONES DE COSTCO MONITOREADAS:
 1. Costco Carretera Nacional — Km 268, Bosques de Valle Alto, Monterrey
 2. Costco Valle Oriente — Av Lázaro Cárdenas 800, San Pedro Garza García
 
+PISTA OPCIONAL "keyword_hint":
+Algunas noticias incluyen el campo "keyword_hint" — categoría sugerida porque el
+título contiene palabras clave de alto impacto (p.ej. "balacera" → seguridad).
+Úsala como pista a favor de marcar la noticia como candidata, NO como veredicto:
+los criterios de exclusión siguen aplicando.
+
 Responde SOLO con JSON válido. Sin texto adicional, sin markdown."""
 
 TRIAGE_USER_PROMPT_TEMPLATE = """Clasifica estas {count} noticias. Para cada una responde:

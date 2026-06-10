@@ -1,0 +1,3 @@
+# Dependencias solo de desarrollo (no se instalan en Railway/producción).
+# Instalar con: .venv/bin/pip install -r requirements-dev.txt
+pytest

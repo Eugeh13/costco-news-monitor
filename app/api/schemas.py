@@ -64,3 +64,6 @@ class HealthResponse(BaseModel):
     timestamp: str
     database: str
     ai_provider: str
+    # Estado del worker (heartbeat): "ok" | "starting" | "sin_latido" | "atrasado"
+    worker: str = "unknown"
+    worker_detail: Optional[str] = None

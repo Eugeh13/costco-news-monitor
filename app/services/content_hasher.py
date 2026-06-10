@@ -43,5 +43,7 @@ class ContentHasher:
     @staticmethod
     def _compute(news: list[NewsItem]) -> str:
         titles = sorted(item.titulo for item in news)
-        content = "|".join(titles)
+        # Separador no imprimible: '|' aparece en títulos reales ("VIDEO | ...")
+        # y permitía que lotes distintos colisionaran en el mismo hash.
+        content = "\x1f".join(titles)
         return hashlib.md5(content.encode()).hexdigest()

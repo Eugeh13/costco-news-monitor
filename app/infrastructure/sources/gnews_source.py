@@ -1,7 +1,18 @@
 """
 GNews API source — uses the gnews library to fetch news.
 
-Single responsibility: fetch news via GNews API and return NewsItem models.
+DESACTIVADA POR DEFAULT (settings.gnews_enabled = False). Diagnóstico 2026-06-10:
+
+1. La lib gnews descarga con feedparser.parse(url) (urllib), que en local falla
+   la verificación SSL y revienta con NetworkError ("object has no attribute
+   'status'"). A diferencia de google_rss (arreglado en a76e0bb con requests+UA),
+   gnews NO permite inyectar una sesión/User-Agent propio.
+2. Es redundante: gnews consulta el mismo backend (news.google.com/rss/search)
+   que GoogleRSSSource, y GOOGLE_NEWS_QUERIES ya cubre las GNEWS_QUERIES con
+   variantes más completas (OR de keywords). Solo producía duplicados a dedupear.
+
+Se conserva el archivo por si Google RSS muere y hay que reactivar esta vía:
+exporta GNEWS_ENABLED=true (y resuelve el problema SSL de urllib primero).
 """
 
 from __future__ import annotations
@@ -11,6 +22,7 @@ from typing import Optional
 
 import pytz
 
+from app.config.settings import settings
 from app.domain.models import NewsItem
 from app.domain.ports import NewsSource
 
@@ -36,9 +48,11 @@ except ImportError:
 class GNewsSource(NewsSource):
     """Collects news via the GNews API wrapper."""
 
-    def __init__(self) -> None:
+    def __init__(self, enabled: bool | None = None) -> None:
+        # Default: settings.gnews_enabled (False) — ver diagnóstico en el docstring.
+        self._enabled = settings.gnews_enabled if enabled is None else enabled
         self._client = None
-        if GNEWS_AVAILABLE:
+        if self._enabled and GNEWS_AVAILABLE:
             try:
                 self._client = GNews(
                     language="es",
@@ -52,6 +66,9 @@ class GNewsSource(NewsSource):
         return "GNews"
 
     def collect(self) -> list[NewsItem]:
+        if not self._enabled:
+            print("  ⚠️ GNews desactivada (redundante con Google RSS; ver gnews_source.py)")
+            return []
         if not self._client:
             return []
 

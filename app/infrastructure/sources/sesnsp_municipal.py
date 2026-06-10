@@ -14,11 +14,19 @@ from __future__ import annotations
 
 import csv
 import re
+from datetime import date
 from typing import Optional
 
 import requests
 
 DATASET_PAGE = "https://www.datos.gob.mx/dataset/incidencia_delictiva"
+
+# Abreviaturas de mes que usa el SESNSP en el nombre del archivo
+# (IDM_NM_dic25.csv, IDM_NM_ene26.csv, ...). Índice 0 = enero.
+_MESES_ABREV = [
+    "ene", "feb", "mar", "abr", "may", "jun",
+    "jul", "ago", "sep", "oct", "nov", "dic",
+]
 
 _BROWSER_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -44,6 +52,61 @@ class SESNSPMunicipalData:
             return None
         return match.group(0)
 
+    def probe_beyond(self, url_actual: str, hoy: Optional[date] = None) -> str:
+        """
+        Sondea cortes POSTERIORES al descubierto y devuelve el más reciente.
+
+        datos.gob.mx lista el corte con meses de rezago (verificado 2026-06:
+        solo aparece dic25). Como el nombre del archivo es predecible
+        (IDM_NM_<mes><año2>.csv) y vive en repodatos.atdt.gob.mx, se prueba
+        con HEAD cada mes siguiente hasta el mes actual y se usa la última
+        URL que responda 200. Si ninguna existe, se conserva la descubierta.
+
+        `hoy` es inyectable solo para tests (default: fecha real).
+        """
+        hoy = hoy or date.today()
+        match = re.search(r"IDM_NM_([a-z]{3})(\d{2})\.csv", url_actual, re.IGNORECASE)
+        if not match or match.group(1).lower() not in _MESES_ABREV:
+            return url_actual
+
+        nombre_actual = match.group(0)
+        anio = 2000 + int(match.group(2))
+        mes = _MESES_ABREV.index(match.group(1).lower()) + 1
+        mejor_url, mejor_anio, mejor_mes = url_actual, anio, mes
+
+        while (anio, mes) < (hoy.year, hoy.month):
+            mes += 1
+            if mes > 12:
+                anio, mes = anio + 1, 1
+            candidato = url_actual.replace(
+                nombre_actual, f"IDM_NM_{_MESES_ABREV[mes - 1]}{anio % 100:02d}.csv"
+            )
+            try:
+                # El CSV vive en repodatos.atdt.gob.mx, cuyo SSL sí valida
+                # completo (el fallback sin verify es solo del descubrimiento).
+                response = requests.head(
+                    candidato,
+                    headers={"User-Agent": _BROWSER_UA},
+                    timeout=15,
+                    allow_redirects=True,
+                )
+                if response.status_code == 200:
+                    mejor_url, mejor_anio, mejor_mes = candidato, anio, mes
+            except requests.RequestException:
+                pass  # error transitorio: seguir probando los meses restantes
+
+        if mejor_url != url_actual:
+            print(f"  ✓ SESNSP: corte más nuevo disponible — {mejor_url.rsplit('/', 1)[-1]}")
+
+        rezago = (hoy.year - mejor_anio) * 12 + (hoy.month - mejor_mes)
+        if rezago > 2:
+            print(
+                f"  ⚠️ SESNSP: el corte más reciente es "
+                f"{_MESES_ABREV[mejor_mes - 1]}{mejor_anio % 100:02d} — "
+                f"el portal lleva {rezago} meses sin publicar"
+            )
+        return mejor_url
+
     def fetch_rows(
         self,
         claves_municipio: list[str],
@@ -64,7 +127,11 @@ class SESNSPMunicipalData:
             with open(local_path, encoding=encoding) as f:
                 return self._filter(csv.reader(f), claves_municipio)
 
-        url = url or self.discover_url()
+        if url is None:
+            url = self.discover_url()
+            if url:
+                # El portal lista el corte con rezago: sondear meses más nuevos
+                url = self.probe_beyond(url)
         if not url:
             return []
 

@@ -11,11 +11,32 @@ Uso:
 """
 
 import argparse
+from typing import Optional
 
 from app.config.settings import settings
 from app.infrastructure.notifications.telegram import ConsoleNotifier, TelegramNotifier
 from app.infrastructure.sources.sesnsp_municipal import SESNSPMunicipalData
 from app.services.crime_digest import MUNICIPIOS_COSTCO, CrimeDigestService
+
+
+def generar_digest(url: Optional[str] = None, csv_path: Optional[str] = None) -> Optional[str]:
+    """
+    Descarga los datos del SESNSP y devuelve el texto del digest.
+
+    Reutilizable: la usa este CLI y el digest mensual programado del
+    scheduler. Devuelve None si el portal no entregó filas (caído o sin
+    datos), para que el scheduler reintente sin marcar el mes como enviado.
+    """
+    source = SESNSPMunicipalData()
+    rows = source.fetch_rows(
+        claves_municipio=list(MUNICIPIOS_COSTCO.keys()),
+        url=url,
+        local_path=csv_path,
+    )
+    print(f"  ✓ {len(rows)} filas de {len(MUNICIPIOS_COSTCO)} municipios")
+    if not rows:
+        return None
+    return CrimeDigestService().build(rows)
 
 
 def main():
@@ -25,15 +46,11 @@ def main():
     parser.add_argument("--telegram", action="store_true", help="Enviar por Telegram")
     args = parser.parse_args()
 
-    source = SESNSPMunicipalData()
-    rows = source.fetch_rows(
-        claves_municipio=list(MUNICIPIOS_COSTCO.keys()),
-        url=args.url,
-        local_path=args.csv,
-    )
-    print(f"  ✓ {len(rows)} filas de {len(MUNICIPIOS_COSTCO)} municipios")
-
-    digest = CrimeDigestService().build(rows)
+    digest = generar_digest(url=args.url, csv_path=args.csv)
+    if digest is None:
+        # Mismo texto que producía CrimeDigestService.build([]) antes del
+        # refactor: el CLI manual se comporta idéntico.
+        digest = "⚠️ Sin datos del SESNSP para generar el digest."
 
     if args.telegram and settings.telegram_enabled:
         notifier = TelegramNotifier(
