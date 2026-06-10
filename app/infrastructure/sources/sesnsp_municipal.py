@@ -13,7 +13,6 @@ IDM_NM_dic25.csv, IDM_NM_ene26.csv, ...).
 from __future__ import annotations
 
 import csv
-import io
 import re
 from typing import Optional
 
@@ -74,9 +73,22 @@ class SESNSPMunicipalData:
             url, headers={"User-Agent": _BROWSER_UA}, stream=True, timeout=300
         ) as response:
             response.raise_for_status()
-            # El SESNSP publica en latin-1/cp1252
-            text = io.TextIOWrapper(response.raw, encoding="latin-1")
-            return self._filter(csv.reader(text), claves_municipio)
+            # iter_lines (no TextIOWrapper sobre .raw): descomprime el gzip del
+            # servidor y no lanza ValueError al EOF con urllib3 2.x.
+            lines = response.iter_lines()
+            first = next(lines, None)
+            if first is None:
+                return []
+            # Sniff de encoding con el header: el SESNSP publica latin-1 hoy,
+            # pero si cambia a utf-8 los filtros con acentos fallarían en silencio.
+            encoding = "utf-8" if "Año" in first.decode("utf-8", errors="replace") else "latin-1"
+
+            def decoded():
+                yield first.decode(encoding)
+                for ln in lines:
+                    yield ln.decode(encoding)
+
+            return self._filter(csv.reader(decoded()), claves_municipio)
 
     # ── Private ──────────────────────────────────────────────
 
@@ -108,7 +120,9 @@ class SESNSPMunicipalData:
 
     @staticmethod
     def _filter(reader, claves_municipio: list[str]) -> list[dict]:
-        header = next(reader)
+        header = next(reader, None)
+        if header is None:  # CSV vacío o respuesta truncada
+            return []
         claves = set(claves_municipio)
         # 'Cve. Municipio' es la columna 3 (índice); localizarla por nombre por robustez
         try:

@@ -26,7 +26,10 @@ MUNICIPIOS_COSTCO: dict[str, str] = {
 GRUPOS_DELITO = [
     ("Robo de vehículo", lambda r: r.get("Subtipo de delito") == "Robo de vehículo automotor"),
     ("Robo a negocio", lambda r: r.get("Subtipo de delito") == "Robo a negocio"),
-    ("Homicidio doloso", lambda r: r.get("Subtipo de delito") == "Homicidio doloso"),
+    # Incluye feminicidio: SESNSP lo clasifica como Tipo aparte, pero para medir
+    # violencia letal dolosa total deben sumarse (MTY registró 12 en 2024).
+    ("Violencia letal (homicidio+feminicidio)",
+     lambda r: r.get("Subtipo de delito") in ("Homicidio doloso", "Feminicidio")),
     ("Extorsión", lambda r: r.get("Tipo de delito") == "Extorsión"),
 ]
 
