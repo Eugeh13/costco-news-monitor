@@ -12,11 +12,20 @@ from typing import Optional
 
 import feedparser
 import pytz
+import requests
 
 from app.domain.models import NewsItem
 from app.domain.ports import NewsSource
 
 CENTRAL_TZ = pytz.timezone("America/Chicago")
+
+# feedparser.parse(url) descarga con urllib, que en algunos entornos falla la
+# verificación SSL y devuelve 0 entries en silencio. Descargamos con requests
+# (certifi + User-Agent de navegador) y le pasamos los bytes a feedparser.
+_BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+)
 
 # Search queries focused on Monterrey metro area
 GOOGLE_NEWS_QUERIES = [
@@ -61,7 +70,10 @@ class GoogleRSSSource(NewsSource):
             f"q={encoded}&hl=es-419&gl=MX&ceid=MX:es-419"
         )
 
-        feed = feedparser.parse(url)
+        response = requests.get(url, headers={"User-Agent": _BROWSER_UA}, timeout=15)
+        response.raise_for_status()
+
+        feed = feedparser.parse(response.content)
         items: list[NewsItem] = []
 
         for entry in feed.entries:
